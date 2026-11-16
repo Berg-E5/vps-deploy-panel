@@ -67,7 +67,7 @@ async def native_codex_lifespan(_application: FastAPI):
         stop_native_codex()
 
 
-app = FastAPI(title="VPS Deploy Panel", version="0.3.31",
+app = FastAPI(title="VPS Deploy Panel", version="1.0.0",
               lifespan=native_codex_lifespan)
 LOCAL_AUTO_LOGIN = env_flag("LOCAL_AUTO_LOGIN", "0")
 
@@ -248,7 +248,7 @@ def public_host(host: dict) -> dict:
 def find_job(id: str):
     job = store.job(id)
     if job is None:
-        raise HTTPException(status_code=404, detail="部署任务不存在")
+        raise HTTPException(status_code=404, detail="任务不存在")
     return job
 
 
@@ -259,7 +259,7 @@ def index():
 
 @app.get("/api/health")
 def health():
-    return {"ok": True, "version": "0.3.31", "security": "local-only"}
+    return {"ok": True, "version": "1.0.0", "security": "local-only"}
 
 
 @app.get("/api/local-session")
@@ -448,7 +448,7 @@ def rekey_host(id: int, body: HostRekeyConfirmation):
     try:
         with store.lock:
             if store.has_active_endpoint_jobs(host["hostname"], host["port"]):
-                raise ValueError("此 IP/端口还有执行中的部署任务，禁止重置 SSH 信任")
+                raise ValueError("此 IP/端口还有执行中的任务，禁止重置 SSH 信任")
             result = executor.rekey_host(
                 host, body.fingerprint, body.previous_fingerprints,
                 on_verified=lambda: store.invalidate_endpoint_trust(
@@ -650,7 +650,7 @@ def firewall_allow_batch(id: int, body: FirewallBatch):
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     with store.lock:
         if store.has_active_endpoint_jobs(host["hostname"], host["port"]):
-            raise HTTPException(status_code=409, detail="服务器存在执行中的部署任务，请先完成再修改端口")
+            raise HTTPException(status_code=409, detail="服务器存在执行中的任务，请先完成再修改端口")
         try:
             raw = executor.run(host, script, timeout=min(300, 30 + 12 * len(body.rules)))
         except (SSHError, ValueError) as exc:
@@ -770,7 +770,7 @@ def create_deployment_plan(body: NewJob, *, expected_host: dict | None = None):
     if body.project not in CATALOG:
         raise HTTPException(status_code=404, detail="不支持的项目")
     if not executor.credential_ready(host):
-        raise HTTPException(status_code=409, detail="SSH 登录凭据不可用，请在服务器管理中设置登录方式")
+        raise HTTPException(status_code=409, detail="SSH 登录凭据不可用，请在「服务器」页设置登录方式")
     # Always refresh read-only facts when creating a new plan; cached results
     # from older app versions and program restarts cannot be silently reused.
     try:
@@ -948,7 +948,7 @@ def read_hiddify_job(id: str, script: str) -> tuple[dict, str]:
     if plan.get("hostname") != host["hostname"] or plan.get("trust_epoch", 0) != host.get("trust_epoch", 0):
         raise HTTPException(status_code=409, detail="服务器已更换或重装，请从当前服务器发起检查")
     if not executor.credential_ready(host):
-        raise HTTPException(status_code=409, detail="SSH 登录凭据不可用，请在服务器管理中检查登录方式")
+        raise HTTPException(status_code=409, detail="SSH 登录凭据不可用，请在「服务器」页检查登录方式")
     try:
         raw = executor.run(host, script, timeout=25)
     except (SSHError, ValueError) as exc:
@@ -1082,7 +1082,7 @@ def job_access(id: str):
     if job["plan"].get("trust_epoch", 0) != host.get("trust_epoch", 0):
         raise HTTPException(status_code=409, detail="此部署记录属于服务器重装前的系统，不能再读取原登录信息")
     if not executor.credential_ready(host):
-        raise HTTPException(status_code=409, detail="SSH 凭据不可用，请在服务器管理中重新设置")
+        raise HTTPException(status_code=409, detail="SSH 凭据不可用，请在「服务器」页重新设置")
     upgrade = store.completed_https_upgrade(host["id"], job["id"])
     identity = None
     if job["status"] == "completed" and job["plan"].get("options", {}).get("access_mode") == "https":

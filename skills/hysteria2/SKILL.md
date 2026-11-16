@@ -1,5 +1,5 @@
 ---
-name: netdeploy-hysteria2
+name: vpsdeploy-hysteria2
 description: "When user selects Hysteria2 VPN server deployment; require systemd, domain/TLS, auth and port prerequisites; guided-only in Alpha."
 ---
 

@@ -24,7 +24,7 @@
 """
 import argparse, base64, json, os, shutil, subprocess, sys, urllib.error, urllib.request
 
-REPO = "Berg-E5/netdeploy-ai"
+REPO = "Berg-E5/vps-deploy-panel"
 BRANCH = "main"
 
 # Windows 上 PATH 里的 git/gh 可能指向 WindowsApps, 从别的 python 进程调它会被 ACL 拦

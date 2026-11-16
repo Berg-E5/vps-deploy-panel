@@ -148,7 +148,7 @@ def test_existing_xui_https_upgrade_executes_only_certificate_steps():
         wait_for_worker(runner, host['id'])
         assert store.job(job['id'])['status'] == 'completed'
         assert len(ssh.scripts) == 4
-        assert all('/var/lib/netdeploy/3x-ui/install-' not in x for x in ssh.scripts)
+        assert all('/var/lib/vpsdeploy/3x-ui/install-' not in x for x in ssh.scripts)
 
 
 def test_certificate_mode_tampering_blocks_execution():

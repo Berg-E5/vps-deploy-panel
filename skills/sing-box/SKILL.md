@@ -1,5 +1,5 @@
 ---
-name: netdeploy-sing-box
+name: vpsdeploy-sing-box
 description: "When user selects sing-box deployment on Debian/Ubuntu VPS; explain official signed apt repository installation and remaining server config, never run shell from model output."
 ---
 

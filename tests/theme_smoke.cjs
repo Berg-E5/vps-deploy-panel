@@ -111,9 +111,9 @@ function harness({stored={},osDark=false,throwStorage=false,legacyMedia=false}={
   assert.equal(ui.root.dataset.appearance,'light');
   assert.equal(ui.root.dataset.accent,'rose');
   assert.equal(ui.root.dataset.fontSize,'large');
-  assert.equal(ui.stored.get('netdeploy-ui-mode-v1'),'light');
-  assert.equal(ui.stored.get('netdeploy-ui-color-v1'),'rose');
-  assert.equal(ui.stored.get('netdeploy-ui-font-size-v1'),'large');
+  assert.equal(ui.stored.get('vpsdeploy-ui-mode-v1'),'light');
+  assert.equal(ui.stored.get('vpsdeploy-ui-color-v1'),'rose');
+  assert.equal(ui.stored.get('vpsdeploy-ui-font-size-v1'),'large');
   assert.deepEqual(ui.pressedMode(),['light']);
   assert.deepEqual(ui.pressedColor(),['rose']);
   assert.deepEqual(ui.pressedFont(),['large']);
@@ -134,7 +134,7 @@ function harness({stored={},osDark=false,throwStorage=false,legacyMedia=false}={
 }
 
 {
-  const ui=harness({stored:{'netdeploy-ui-mode-v1':'system','netdeploy-ui-color-v1':'teal'},osDark:true});
+  const ui=harness({stored:{'vpsdeploy-ui-mode-v1':'system','vpsdeploy-ui-color-v1':'teal'},osDark:true});
   assert.equal(ui.root.dataset.appearance,'dark');
   assert.equal(ui.root.dataset.themeMode,'system');
   ui.systemDark(false);
@@ -153,16 +153,16 @@ function harness({stored={},osDark=false,throwStorage=false,legacyMedia=false}={
   ui.chooseMode('system');
   ui.systemDark(true);
   assert.equal(ui.root.dataset.appearance,'dark','Legacy matchMedia listener still updates system mode');
-  ui.stored.set('netdeploy-ui-mode-v1','light');
-  ui.stored.set('netdeploy-ui-color-v1','amber');
-  ui.stored.set('netdeploy-ui-font-size-v1','standard');
-  ui.storageEvent('netdeploy-ui-color-v1');
+  ui.stored.set('vpsdeploy-ui-mode-v1','light');
+  ui.stored.set('vpsdeploy-ui-color-v1','amber');
+  ui.stored.set('vpsdeploy-ui-font-size-v1','standard');
+  ui.storageEvent('vpsdeploy-ui-color-v1');
   assert.equal(ui.root.dataset.appearance,'light');
   assert.equal(ui.root.dataset.accent,'amber');
   assert.equal(ui.root.dataset.fontSize,'standard','Cross-tab updates include font size');
-  ui.stored.set('netdeploy-ui-mode-v1','bogus');
-  ui.stored.set('netdeploy-ui-color-v1','url(javascript:evil)');
-  ui.stored.set('netdeploy-ui-font-size-v1','calc(999px)');
+  ui.stored.set('vpsdeploy-ui-mode-v1','bogus');
+  ui.stored.set('vpsdeploy-ui-color-v1','url(javascript:evil)');
+  ui.stored.set('vpsdeploy-ui-font-size-v1','calc(999px)');
   ui.storageEvent(null);
   assert.equal(ui.root.dataset.appearance,'dark','Tampered prefs are rejected');
   assert.equal(ui.root.dataset.accent,'blue');
@@ -170,7 +170,7 @@ function harness({stored={},osDark=false,throwStorage=false,legacyMedia=false}={
 }
 
 {
-  const ui=harness({stored:{'netdeploy-ui-mode-v1':'invalid','netdeploy-ui-color-v1':'invalid'},throwStorage:true});
+  const ui=harness({stored:{'vpsdeploy-ui-mode-v1':'invalid','vpsdeploy-ui-color-v1':'invalid'},throwStorage:true});
   assert.equal(ui.root.dataset.appearance,'dark');
   assert.equal(ui.root.dataset.accent,'blue');
   ui.chooseColor('emerald');

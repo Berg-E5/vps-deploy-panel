@@ -36,7 +36,7 @@ def scanned(host: dict, key) -> dict[str, str]:
 
 
 def fresh_environment(tmp_path, monkeypatch):
-    store = Store(str(tmp_path / "netdeploy.db"))
+    store = Store(str(tmp_path / "vpsdeploy.db"))
     ssh = SSHExecutor(SSHConfig(str(tmp_path / "key"), str(tmp_path / "known_hosts")))
     monkeypatch.setattr(main, "store", store)
     monkeypatch.setattr(main, "executor", ssh)

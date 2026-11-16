@@ -21,7 +21,7 @@ test "$(id -u)" = 0
 test -d /run/systemd/system
 test -x /usr/local/s-ui/sui
 systemctl is-active --quiet s-ui
-record='/var/lib/netdeploy/s-ui/install-result.env'
+record='/var/lib/vpsdeploy/s-ui/install-result.env'
 test -f "$record" && test ! -L "$record"
 test "$(stat -c %a "$record")" = 600
 test "$(stat -c %u "$record")" = 0
@@ -60,7 +60,7 @@ ACTIVATE = r"""set -eu
 __LOCAL_GUARD__
 __HTTPS_GUARD__
 test "$(id -u)" = 0
-record='/var/lib/netdeploy/s-ui/install-result.env'
+record='/var/lib/vpsdeploy/s-ui/install-result.env'
 db='/usr/local/s-ui/db/s-ui.db'
 cert='__CERT_ROOT__/live/__IDENTITY__/fullchain.pem'
 key='__CERT_ROOT__/live/__IDENTITY__/privkey.pem'
@@ -101,7 +101,7 @@ PY
     fi
     # Remove TLS metadata only, preserving initial credentials and web path.
     if [ -f "$record" ]; then
-        temp="$(mktemp /var/lib/netdeploy/s-ui/.rollback.XXXXXXXX)"
+        temp="$(mktemp /var/lib/vpsdeploy/s-ui/.rollback.XXXXXXXX)"
         grep -Ev '^SUI_TLS_(MODE|IDENTITY|FAMILY)=' "$record" > "$temp" || true
         chmod 600 "$temp"
         mv -f "$temp" "$record"
@@ -148,7 +148,7 @@ systemctl restart s-ui
 ready=no
 for attempt in 1 2 3 4 5 6 7 8 9 10 11 12; do
     if systemctl is-active --quiet s-ui &&
-       netdeploy_public_socket 2095 &&
+       vpsdeploy_public_socket 2095 &&
        test "$(ss -Hltn 'sport = :2096' | awk '{print $4}')" = '127.0.0.1:2096'; then
         code="$(curl __TLS_CURL_FLAGS__ --noproxy '*' --proto '=https' --tlsv1.2 --silent \
             --output /dev/null --write-out '%{http_code}' --max-time 8 \
@@ -167,7 +167,7 @@ fi
 """ + allow_port_script(PORT, "tcp") + r"""
 __IPV6_PUBLIC_HEALTH__
 # Record HTTPS identity atomically only after successful TLS/UFW validation.
-temp="$(mktemp /var/lib/netdeploy/s-ui/.result.XXXXXXXX)"
+temp="$(mktemp /var/lib/vpsdeploy/s-ui/.result.XXXXXXXX)"
 cp "$record" "$temp"
 {
     printf 'SUI_TLS_MODE=%s\n' '__MODE__'
@@ -201,12 +201,12 @@ def https_steps(identity: str, ssh_ipv4: str | None = None,
     root = cert_root(mode)
     dep = dict(core[1])
     issuer = dict(core[2])
-    old = f"""cat > {root}/renewal-hooks/deploy/netdeploy-xui-reload.sh <<'RENEW_HOOK'
+    old = f"""cat > {root}/renewal-hooks/deploy/vpsdeploy-xui-reload.sh <<'RENEW_HOOK'
 #!/bin/sh
 set -eu
 systemctl try-restart x-ui >/dev/null
 RENEW_HOOK"""
-    new = f"""cat > {root}/renewal-hooks/deploy/netdeploy-sui-reload.sh <<'RENEW_HOOK'
+    new = f"""cat > {root}/renewal-hooks/deploy/vpsdeploy-sui-reload.sh <<'RENEW_HOOK'
 #!/bin/sh
 set -eu
 # Restart only when this managed S-UI certificate was renewed.
@@ -215,10 +215,10 @@ if [ "${{RENEWED_LINEAGE:-}}" = '{root}/live/{identity}' ]; then
 fi
 RENEW_HOOK"""
     script = issuer["script"]
-    if script.count(old) != 1 or script.count("netdeploy-xui-reload.sh") != 2:
+    if script.count(old) != 1 or script.count("vpsdeploy-xui-reload.sh") != 2:
         raise RuntimeError("Certbot template changed: review S-UI renewal integration")
     script = script.replace(old, new)
-    script = script.replace("netdeploy-xui-reload.sh", "netdeploy-sui-reload.sh")
+    script = script.replace("vpsdeploy-xui-reload.sh", "vpsdeploy-sui-reload.sh")
     script = script.replace("existing 3X-UI localhost listener", "existing S-UI localhost listener")
     issuer["script"] = script
     preflight = PRECHECK

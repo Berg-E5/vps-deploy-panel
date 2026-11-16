@@ -89,8 +89,8 @@ def test_ipv6_acme_script_has_pinned_address_dns_and_valid_shortlived_renewal(
     if identity == V6:
         assert '--ip-address "' + V6 + '"' in issue
         assert "--preferred-profile shortlived" in issue
-        assert "netdeploy-certbot-renew.timer" in install + issue + activate
-        assert "/etc/netdeploy/letsencrypt/live/" + V6 in issue + activate
+        assert "vpsdeploy-certbot-renew.timer" in install + issue + activate
+        assert "/etc/vpsdeploy/letsencrypt/live/" + V6 in issue + activate
     else:
         assert "panel.example.com" in pre
         assert V6 in pre
@@ -105,7 +105,7 @@ def test_ipv6_acme_script_has_pinned_address_dns_and_valid_shortlived_renewal(
         assert "SUI_TLS_FAMILY=6" not in pre
     else:
         assert '"$panel_cli" setting -listenIP ::' in activate
-        assert "netdeploy_public_socket" in activate
+        assert "vpsdeploy_public_socket" in activate
         assert "ND_IPV6_PUBLIC_HTTPS_FAILED" in activate
 
 

@@ -52,8 +52,8 @@ def test_new_sui_install_auto_https_and_native_tls(identity, mode, domain):
     assert "certbot.timer" in tls
     assert "systemctl try-restart s-ui" in tls
     assert "systemctl try-restart x-ui" not in tls
-    assert "netdeploy-sui-reload.sh" in tls
-    assert "netdeploy-xui-reload.sh" not in tls
+    assert "vpsdeploy-sui-reload.sh" in tls
+    assert "vpsdeploy-xui-reload.sh" not in tls
     assert "curl -4" in tls and "--connect-to" in tls and "--insecure" not in tls
     assert "trap 'if [ \"$changed\" = yes ]; then restore_local || true; fi' EXIT" in tls
     assert tls.index("systemctl stop s-ui") < tls.index('("webListen", "127.0.0.1")')
@@ -135,7 +135,7 @@ def test_activation_failure_executes_local_only_rollback_with_real_sqlite(tmp_pa
     import sqlite3
 
     root = tmp_path / "fake-vps"
-    home = root / "var/lib/netdeploy/s-ui"
+    home = root / "var/lib/vpsdeploy/s-ui"
     db = root / "usr/local/s-ui/db/s-ui.db"
     live = root / "etc/letsencrypt/live/panel.example.com"
     fake = tmp_path / "fakebin"
@@ -186,9 +186,9 @@ def test_activation_failure_executes_local_only_rollback_with_real_sqlite(tmp_pa
     plan = https_steps("panel.example.com", "8.8.8.8")
     script = plan[-1]["script"]
     replacements = {
-        "/var/lib/netdeploy/s-ui/install-result.env": str(record),
-        "/var/lib/netdeploy/s-ui/.rollback.": str(home / ".rollback."),
-        "/var/lib/netdeploy/s-ui/.result.": str(home / ".result."),
+        "/var/lib/vpsdeploy/s-ui/install-result.env": str(record),
+        "/var/lib/vpsdeploy/s-ui/.rollback.": str(home / ".rollback."),
+        "/var/lib/vpsdeploy/s-ui/.result.": str(home / ".result."),
         "/usr/local/s-ui/db/s-ui.db": str(db),
         "/etc/letsencrypt/live/panel.example.com": str(live),
     }
@@ -227,7 +227,7 @@ def test_status_and_access_only_claim_verified_https_with_matching_identity():
 
 @pytest.fixture
 def sui_web(monkeypatch, tmp_path):
-    data = Store(str(tmp_path / "netdeploy.db"))
+    data = Store(str(tmp_path / "vpsdeploy.db"))
     host = data.add_host({"name": "SUI test", "hostname": "8.8.8.8", "port": 22,
                           "username": "root", "tls_domain": "panel.example.com"})
     class SSH:

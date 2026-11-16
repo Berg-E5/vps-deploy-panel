@@ -173,7 +173,7 @@ class Store:
                 (host_id,),
             ).fetchone()[0]
             if active:
-                raise ValueError("该服务器有排队或执行中的部署任务，禁止删除")
+                raise ValueError("该服务器有排队或执行中的任务，禁止删除")
             count = c.execute("SELECT COUNT(*) FROM jobs WHERE host_id=?", (host_id,)).fetchone()[0]
             if count and not purge_history:
                 raise ValueError(f"该服务器有 {count} 条本地部署历史，请确认一并删除；不会卸载 VPS 软件")

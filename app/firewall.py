@@ -147,27 +147,27 @@ def allow_ports_script(rules: list[FirewallPort]) -> str:
         "set -eu",
         'test "$(id -u)" = 0',
         'if ! command -v ufw >/dev/null 2>&1; then',
-        "    echo 'ND_FIREWALL=unavailable'",
+        "    echo 'VPS_FIREWALL=unavailable'",
     ]
     for port, protocol in ordered:
-        body.append(f"    echo 'ND_RULE {port}/{protocol} skipped'")
+        body.append(f"    echo 'VPS_RULE {port}/{protocol} skipped'")
     body.extend([
         "elif LC_ALL=C ufw status | grep -Fxq 'Status: inactive'; then",
-        "    echo 'ND_FIREWALL=inactive'",
+        "    echo 'VPS_FIREWALL=inactive'",
     ])
     for port, protocol in ordered:
-        body.append(f"    echo 'ND_RULE {port}/{protocol} skipped'")
+        body.append(f"    echo 'VPS_RULE {port}/{protocol} skipped'")
     body.extend([
         "elif LC_ALL=C ufw status | grep -Fxq 'Status: active'; then",
-        "    echo 'ND_FIREWALL=active'",
+        "    echo 'VPS_FIREWALL=active'",
     ])
     for item in rules:
         port, protocol = item.port, item.protocol
         body.extend([
             f"    if ufw allow {port}/{protocol} comment 'VPS Deploy Panel approved port' >/dev/null 2>&1; then",
-            f"        echo 'ND_RULE {port}/{protocol} allowed'",
+            f"        echo 'VPS_RULE {port}/{protocol} allowed'",
             "    else",
-            f"        echo 'ND_RULE {port}/{protocol} failed'",
+            f"        echo 'VPS_RULE {port}/{protocol} failed'",
             "    fi",
         ])
     body.extend([
@@ -183,7 +183,7 @@ def parse_firewall_batch_output(raw: str, rules: list[FirewallPort]) -> dict:
     """Refuse to treat unverified/partial remote responses as full success."""
     lines = raw.splitlines()
     if not lines or lines[0] not in {
-        "ND_FIREWALL=active", "ND_FIREWALL=inactive", "ND_FIREWALL=unavailable"
+        "VPS_FIREWALL=active", "VPS_FIREWALL=inactive", "VPS_FIREWALL=unavailable"
     }:
         raise ValueError("远端防火墙状态无法核验，部分端口可能已经修改，请检查 VPS")
     mode = lines[0].split("=", 1)[1]
@@ -191,7 +191,7 @@ def parse_firewall_batch_output(raw: str, rules: list[FirewallPort]) -> dict:
     expected = [f"{item.port}/{item.protocol}" for item in rules]
     seen = {}
     for line in lines[1:]:
-        match = re.fullmatch(r"ND_RULE (\d{1,5})/(tcp|udp) (allowed|failed|skipped)", line)
+        match = re.fullmatch(r"VPS_RULE (\d{1,5})/(tcp|udp) (allowed|failed|skipped)", line)
         if not match:
             raise ValueError("远端放行结果无法完整核对，请检查 VPS 实际 UFW 规则")
         key, status = f"{int(match[1])}/{match[2]}", match[3]

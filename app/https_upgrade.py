@@ -227,7 +227,7 @@ echo 'Certbot and renewal timer available'
         )
     issue = r"""set -eu
 umask 077
-cert_log="$(mktemp /tmp/netdeploy-certbot.XXXXXXXX)"
+cert_log="$(mktemp /tmp/vpsdeploy-certbot.XXXXXXXX)"
 trap 'rm -f "$cert_log"' EXIT
 
 # Never dump Certbot's untrusted raw output into the application or AI logs.
@@ -279,12 +279,12 @@ openssl x509 -in "__CERT_ROOT__/live/__IDENTITY__/fullchain.pem" -noout -__CHECK
 systemctl enable --now __RENEW_TIMER__ >/dev/null
 test "$(systemctl is-enabled __RENEW_TIMER__)" = enabled
 install -d -m 755 __CERT_ROOT__/renewal-hooks/deploy
-cat > __CERT_ROOT__/renewal-hooks/deploy/netdeploy-xui-reload.sh <<'RENEW_HOOK'
+cat > __CERT_ROOT__/renewal-hooks/deploy/vpsdeploy-xui-reload.sh <<'RENEW_HOOK'
 #!/bin/sh
 set -eu
 systemctl try-restart x-ui >/dev/null
 RENEW_HOOK
-chmod 755 __CERT_ROOT__/renewal-hooks/deploy/netdeploy-xui-reload.sh
+chmod 755 __CERT_ROOT__/renewal-hooks/deploy/vpsdeploy-xui-reload.sh
 echo 'Trusted certificate issued, identity checked, automatic renewal configured'
 """
     activate = r"""set -eu
@@ -359,7 +359,7 @@ systemctl restart x-ui
 __PUBLIC_SOCKET_CHECK__
 listener_ready=no
 for attempt in 1 2 3 4 5 6 7 8 9 10 11 12; do
-    if systemctl is-active --quiet x-ui && netdeploy_public_socket __PORT__; then
+    if systemctl is-active --quiet x-ui && vpsdeploy_public_socket __PORT__; then
         listener_ready=yes
         break
     fi
@@ -463,7 +463,7 @@ test -r /etc/x-ui/install-result.env
 test "$(stat -c %a /etc/x-ui/install-result.env)" = 600
 test "$(sed -n 's/^XUI_PANEL_PORT=//p' /etc/x-ui/install-result.env)" = "__PORT__"
 __PUBLIC_SOCKET_CHECK__
-netdeploy_public_socket __PORT__ || {
+vpsdeploy_public_socket __PORT__ || {
     echo 'XUI_HTTPS_LISTENER_NOT_PUBLIC: no verified wildcard socket on panel TCP __PORT__' >&2; exit 37;
 }
 cert="__CERT_ROOT__/live/__IDENTITY__/fullchain.pem"

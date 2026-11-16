@@ -16,7 +16,7 @@ from .listening import PUBLIC_SOCKET_CHECK
 VERSION = "v3.11.0"
 INSTALLER_SHA256 = "9684bae4f769b2127fcceceb4f200045657381311867529e6ba76c6b58e2825d"
 INSTALL_URL = f"https://raw.githubusercontent.com/MHSanaei/3x-ui/{VERSION}/install.sh"
-STAGING = "/var/lib/netdeploy/3x-ui"
+STAGING = "/var/lib/vpsdeploy/3x-ui"
 INSTALL_FILE = f"{STAGING}/install-{VERSION}.sh"
 DEFAULT_PORT = 24443
 
@@ -119,7 +119,7 @@ if ss -Hltn 'sport = :__PORT__' | grep -q .; then
     echo 'TCP port became occupied; installer not started' >&2
     exit 14
 fi
-install_log="$(mktemp /tmp/netdeploy-3xui-log.XXXXXXXX)"
+install_log="$(mktemp /tmp/vpsdeploy-3xui-log.XXXXXXXX)"
 trap 'rm -f "$install_log"' EXIT
 # Upstream installer prints credentials: do not forward its stdout/stderr.
 if ! env XUI_NONINTERACTIVE=1 XUI_SSL_MODE=none XUI_DB_TYPE=sqlite \
@@ -177,7 +177,7 @@ if ! printf '%s\n' "$addresses" | grep -Fxq '127.0.0.1:__PORT__' ||
     echo 'XUI_LOCAL_LISTENER_MISSING: expected only localhost' >&2; exit 20
 fi"""
     public_listener = PUBLIC_SOCKET_CHECK + """
-netdeploy_public_socket __PORT__ || {
+vpsdeploy_public_socket __PORT__ || {
     systemctl stop x-ui >/dev/null 2>&1 || true
     echo 'XUI_PUBLIC_HTTP_LISTENER_MISSING: not bound to wildcard IP' >&2; exit 20
 }"""

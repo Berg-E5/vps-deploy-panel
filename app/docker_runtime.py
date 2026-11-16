@@ -11,7 +11,7 @@ KEY_FPR = "9DC858229FC7DD38854AE2D88D81803C0EBFCD88"
 PKGS = "docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin"
 
 # Shared read-only guard for both SSH preflight and immediate pre-install checks.
-PRISTINE = r"""netdeploy_docker_pristine() {
+PRISTINE = r"""vpsdeploy_docker_pristine() {
   command -v apt-get >/dev/null 2>&1 && command -v dpkg >/dev/null 2>&1 || return 1
   for program in docker dockerd containerd docker-compose; do
     if command -v "$program" >/dev/null 2>&1; then return 1; fi
@@ -37,7 +37,7 @@ PRISTINE = r"""netdeploy_docker_pristine() {
 }
 """
 
-OS_GUARD = r"""netdeploy_docker_supported_os() {
+OS_GUARD = r"""vpsdeploy_docker_supported_os() {
   test -r /etc/os-release && command -v dpkg >/dev/null || return 1
   . /etc/os-release
   case "$ID:$VERSION_CODENAME" in
@@ -60,7 +60,7 @@ elif command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1 &&
      test -s /etc/apt/sources.list.d/docker.sources &&
      test -r /etc/apt/keyrings/docker.asc; then
   echo DOCKER_SETUP=compose
-elif netdeploy_docker_pristine; then
+elif vpsdeploy_docker_pristine; then
   echo DOCKER_SETUP=clean
 else
   echo DOCKER_SETUP=blocked
@@ -68,67 +68,67 @@ fi
 """
 
 FRESH_CHECK = "set -eu\n" + PRISTINE + OS_GUARD + r"""
-test "$(id -u)" = 0 || { echo 'ND_DOCKER_ROOT_REQUIRED' >&2; exit 41; }
-netdeploy_docker_supported_os || {
-  echo 'ND_DOCKER_OS_UNSUPPORTED: only official Debian/Ubuntu AMD64/ARM64 releases' >&2; exit 41;
+test "$(id -u)" = 0 || { echo 'VPS_DOCKER_ROOT_REQUIRED' >&2; exit 41; }
+vpsdeploy_docker_supported_os || {
+  echo 'VPS_DOCKER_OS_UNSUPPORTED: only official Debian/Ubuntu AMD64/ARM64 releases' >&2; exit 41;
 }
-netdeploy_docker_pristine || {
-  echo 'ND_DOCKER_INSTALL_CONFLICT: existing Docker files/packages; no automatic replacement' >&2; exit 42;
+vpsdeploy_docker_pristine || {
+  echo 'VPS_DOCKER_INSTALL_CONFLICT: existing Docker files/packages; no automatic replacement' >&2; exit 42;
 }
 test "$(df -Pk / | awk 'NR==2 {print $4}')" -ge 4000000 || {
-  echo 'ND_DOCKER_DISK_LOW: at least 4 GB free for the combined deployment' >&2; exit 43;
+  echo 'VPS_DOCKER_DISK_LOW: at least 4 GB free for the combined deployment' >&2; exit 43;
 }
-echo 'ND_DOCKER_CLEAN: new VPS can use the Docker official convenience installer'
+echo 'VPS_DOCKER_CLEAN: new VPS can use the Docker official convenience installer'
 """
 
 # The official Docker convenience script is supplied by docker/docker-install.
 # Retrieve it over TLS and execute the inspected local copy, NOT curl | bash.
 # Docker warns that this is for testing/provisioning, not unattended production.
-SCRIPT_DIR = "/var/lib/netdeploy/docker-setup"
+SCRIPT_DIR = "/var/lib/vpsdeploy/docker-setup"
 DOWNLOAD_OFFICIAL = r"""set -eu
 test "$(id -u)" = 0
-test ! -L /var/lib/netdeploy && test ! -L /var/lib/netdeploy/docker-setup || exit 48
-install -d -m 0700 /var/lib/netdeploy/docker-setup
-script=/var/lib/netdeploy/docker-setup/get-docker.sh
+test ! -L /var/lib/vpsdeploy && test ! -L /var/lib/vpsdeploy/docker-setup || exit 48
+install -d -m 0700 /var/lib/vpsdeploy/docker-setup
+script=/var/lib/vpsdeploy/docker-setup/get-docker.sh
 test ! -e "$script" && test ! -L "$script" || {
-  echo 'ND_DOCKER_SCRIPT_EXISTS: review existing setup before retrying' >&2; exit 48
+  echo 'VPS_DOCKER_SCRIPT_EXISTS: review existing setup before retrying' >&2; exit 48
 }
-tmp="$(mktemp /var/lib/netdeploy/docker-setup/.get-docker.XXXXXXXX)"
+tmp="$(mktemp /var/lib/vpsdeploy/docker-setup/.get-docker.XXXXXXXX)"
 trap 'rm -f "$tmp"' EXIT
 curl --proto '=https' --tlsv1.2 --fail --silent --show-error --location --max-time 65 \
   https://get.docker.com -o "$tmp" || {
-  echo 'ND_DOCKER_SCRIPT_DOWNLOAD_FAILED: cannot reach Docker official installer' >&2; exit 49
+  echo 'VPS_DOCKER_SCRIPT_DOWNLOAD_FAILED: cannot reach Docker official installer' >&2; exit 49
 }
 test "$(wc -c < "$tmp")" -ge 5000 || {
-  echo 'ND_DOCKER_SCRIPT_TOO_SMALL' >&2; exit 49
+  echo 'VPS_DOCKER_SCRIPT_TOO_SMALL' >&2; exit 49
 }
 grep -Fq 'docker' "$tmp" && grep -Fq 'apt-get' "$tmp" || {
-  echo 'ND_DOCKER_SCRIPT_UNEXPECTED: manual review needed' >&2; exit 49
+  echo 'VPS_DOCKER_SCRIPT_UNEXPECTED: manual review needed' >&2; exit 49
 }
 sh -n "$tmp" || {
-  echo 'ND_DOCKER_SCRIPT_SYNTAX: official script validation failed' >&2; exit 49
+  echo 'VPS_DOCKER_SCRIPT_SYNTAX: official script validation failed' >&2; exit 49
 }
 sh "$tmp" --dry-run >/dev/null || {
-  echo 'ND_DOCKER_SCRIPT_DRY_RUN_FAILED: do not execute unchecked script' >&2; exit 49
+  echo 'VPS_DOCKER_SCRIPT_DRY_RUN_FAILED: do not execute unchecked script' >&2; exit 49
 }
 install -m 0700 "$tmp" "$script"
-(cd /var/lib/netdeploy/docker-setup && sha256sum get-docker.sh > get-docker.sha256)
-chmod 0600 /var/lib/netdeploy/docker-setup/get-docker.sha256
-echo 'ND_DOCKER_OFFICIAL_SCRIPT_READY: https://get.docker.com downloaded and dry-run validated'
+(cd /var/lib/vpsdeploy/docker-setup && sha256sum get-docker.sh > get-docker.sha256)
+chmod 0600 /var/lib/vpsdeploy/docker-setup/get-docker.sha256
+echo 'VPS_DOCKER_OFFICIAL_SCRIPT_READY: https://get.docker.com downloaded and dry-run validated'
 sha256sum "$script"
 """
 
 RUN_OFFICIAL = PRISTINE + r"""set -eu
 test "$(id -u)" = 0
-netdeploy_docker_pristine || {
-  echo 'ND_DOCKER_EXISTING_INSTALL: refusing to overwrite an existing engine' >&2; exit 48
+vpsdeploy_docker_pristine || {
+  echo 'VPS_DOCKER_EXISTING_INSTALL: refusing to overwrite an existing engine' >&2; exit 48
 }
-script=/var/lib/netdeploy/docker-setup/get-docker.sh
+script=/var/lib/vpsdeploy/docker-setup/get-docker.sh
 test -f "$script" && test ! -L "$script" &&
   test "$(stat -c %u "$script")" = 0 &&
   test "$(stat -c %a "$script")" = 700 || exit 49
-(cd /var/lib/netdeploy/docker-setup && sha256sum -c --status get-docker.sha256) || {
-  echo 'ND_DOCKER_SCRIPT_HASH_CHANGED: do not run altered installer' >&2; exit 49
+(cd /var/lib/vpsdeploy/docker-setup && sha256sum -c --status get-docker.sha256) || {
+  echo 'VPS_DOCKER_SCRIPT_HASH_CHANGED: do not run altered installer' >&2; exit 49
 }
 sh -n "$script"
 sh "$script" --dry-run >/dev/null
@@ -143,27 +143,27 @@ command -v git >/dev/null 2>&1 || missing="$missing git"
 if test -n "$missing"; then
   simulation="$(apt-get -s -o DPkg::Lock::Timeout=240 install $missing)" || exit 46
   if printf '%s\n' "$simulation" | grep -Eq '^Remv[[:space:]]'; then
-    echo 'ND_DOCKER_APT_REMOVAL_BLOCKED' >&2; exit 46
+    echo 'VPS_DOCKER_APT_REMOVAL_BLOCKED' >&2; exit 46
   fi
   apt-get -o DPkg::Lock::Timeout=240 install -y -q $missing
 fi
 systemctl enable --now docker
-echo 'ND_DOCKER_ENGINE_READY: official Docker script and Compose v2 validated'
+echo 'VPS_DOCKER_ENGINE_READY: official Docker script and Compose v2 validated'
 """
 
 COMPOSE_CHECK = "set -eu\n" + OS_GUARD + r"""
 test "$(id -u)" = 0
-netdeploy_docker_supported_os || exit 47
+vpsdeploy_docker_supported_os || exit 47
 docker info >/dev/null && test -S /var/run/docker.sock || exit 47
 ! docker compose version >/dev/null 2>&1 || exit 47
 dpkg -s docker-ce 2>/dev/null | grep -Fxq 'Status: install ok installed' || {
-  echo 'ND_DOCKER_EXISTING_ENGINE_UNSUPPORTED: requires official docker-ce' >&2; exit 47;
+  echo 'VPS_DOCKER_EXISTING_ENGINE_UNSUPPORTED: requires official docker-ce' >&2; exit 47;
 }
 test -r /etc/apt/sources.list.d/docker.sources && test -r /etc/apt/keyrings/docker.asc
 fingerprint="$(gpg --batch --with-colons --show-keys /etc/apt/keyrings/docker.asc 2>/dev/null |
   awk -F: '$1 == "fpr" {print $10; exit}')"
 test "$fingerprint" = '__KEY_FPR__' || exit 47
-echo 'ND_DOCKER_COMPOSE_PRECHECK_OK: existing Engine will be retained'
+echo 'VPS_DOCKER_COMPOSE_PRECHECK_OK: existing Engine will be retained'
 """.replace("__KEY_FPR__", KEY_FPR)
 
 COMPOSE_INSTALL = r"""set -eu
@@ -172,13 +172,13 @@ export DEBIAN_FRONTEND=noninteractive LC_ALL=C
 apt-get -o DPkg::Lock::Timeout=240 update -q
 simulation="$(apt-get -s -o DPkg::Lock::Timeout=240 install docker-compose-plugin docker-buildx-plugin git)" || exit 46
 if printf '%s\n' "$simulation" | grep -Eq '^Remv[[:space:]]'; then
-  echo 'ND_DOCKER_APT_REMOVAL_BLOCKED: no change to existing engine' >&2; exit 46
+  echo 'VPS_DOCKER_APT_REMOVAL_BLOCKED: no change to existing engine' >&2; exit 46
 fi
 if printf '%s\n' "$simulation" | grep -Eq '^Inst[[:space:]](docker-ce|docker-ce-cli|containerd[.]io|docker[.]io|containerd|runc)([[:space:]]|:)'; then
-  echo 'ND_DOCKER_ENGINE_CHANGE_BLOCKED: preserving existing Docker packages' >&2; exit 46
+  echo 'VPS_DOCKER_ENGINE_CHANGE_BLOCKED: preserving existing Docker packages' >&2; exit 46
 fi
 apt-get -o DPkg::Lock::Timeout=240 install -y -q docker-compose-plugin docker-buildx-plugin git
-echo 'ND_DOCKER_COMPOSE_PLUGIN_INSTALLED: existing Docker Engine preserved'
+echo 'VPS_DOCKER_COMPOSE_PLUGIN_INSTALLED: existing Docker Engine preserved'
 """
 
 GIT_CHECK = r"""set -eu
@@ -187,21 +187,21 @@ docker info >/dev/null && docker compose version >/dev/null
 ! command -v git >/dev/null 2>&1 || exit 47
 command -v apt-get >/dev/null
 test -d /run/systemd/system
-echo 'ND_DOCKER_GIT_PRECHECK_OK'
+echo 'VPS_DOCKER_GIT_PRECHECK_OK'
 """
 GIT_INSTALL = r"""set -eu
 export DEBIAN_FRONTEND=noninteractive LC_ALL=C
 apt-get -o DPkg::Lock::Timeout=240 update -q
 simulation="$(apt-get -s -o DPkg::Lock::Timeout=240 install git)" || exit 46
 if printf '%s\n' "$simulation" | grep -Eq '^Remv[[:space:]]'; then
-  echo 'ND_DOCKER_APT_REMOVAL_BLOCKED: no changes to Docker packages' >&2; exit 46
+  echo 'VPS_DOCKER_APT_REMOVAL_BLOCKED: no changes to Docker packages' >&2; exit 46
 fi
 if printf '%s\n' "$simulation" | grep -Eq '^Inst[[:space:]](docker-ce|docker-ce-cli|containerd[.]io|docker[.]io|containerd|runc)([[:space:]]|:)'; then
-  echo 'ND_DOCKER_ENGINE_CHANGE_BLOCKED: Git install would change existing Engine' >&2; exit 46
+  echo 'VPS_DOCKER_ENGINE_CHANGE_BLOCKED: Git install would change existing Engine' >&2; exit 46
 fi
 apt-get -o DPkg::Lock::Timeout=240 install -y -q git
 command -v git >/dev/null
-echo 'ND_DOCKER_GIT_INSTALLED'
+echo 'VPS_DOCKER_GIT_INSTALLED'
 """
 
 VERIFY = r"""set -eu
@@ -212,7 +212,7 @@ docker info >/dev/null
 docker compose version
 docker buildx version
 command -v git >/dev/null
-echo 'ND_DOCKER_VERIFIED: Docker Engine, Compose CLI plugin, Buildx and Git'
+echo 'VPS_DOCKER_VERIFIED: Docker Engine, Compose CLI plugin, Buildx and Git'
 """
 
 

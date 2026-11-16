@@ -26,7 +26,7 @@ def batch_vps(tmp_path,monkeypatch):
     class SSH:
         def __init__(self):
             self.scripts=[]
-            self.outcome="ND_FIREWALL=active\nND_RULE 80/tcp allowed\nND_RULE 8443/tcp allowed\n"
+            self.outcome="VPS_FIREWALL=active\nVPS_RULE 80/tcp allowed\nVPS_RULE 8443/tcp allowed\n"
             self.connected=True
         def credential_ready(self,host): return self.connected
         def run(self,host,script,timeout=30):
@@ -100,7 +100,7 @@ def test_running_job_blocks_ufw_batch(batch_vps):
 
 def test_partial_failures_visible_and_never_report_full_success(batch_vps):
     client,db,host,ssh=batch_vps
-    ssh.outcome="ND_FIREWALL=active\nND_RULE 80/tcp allowed\nND_RULE 8443/tcp failed\n"
+    ssh.outcome="VPS_FIREWALL=active\nVPS_RULE 80/tcp allowed\nVPS_RULE 8443/tcp failed\n"
     uri=f"/api/hosts/{host['id']}/firewall/allow-batch"
     result=client.post(uri,headers=HEAD,json={"rules":rules(),"confirmation":True})
     assert result.status_code==200
@@ -114,7 +114,7 @@ def test_partial_failures_visible_and_never_report_full_success(batch_vps):
 @pytest.mark.parametrize("mode",["inactive","unavailable"])
 def test_ufw_disabled_does_not_claim_rules_are_applied(batch_vps,mode):
     client,db,host,ssh=batch_vps
-    ssh.outcome=f"ND_FIREWALL={mode}\nND_RULE 80/tcp skipped\nND_RULE 8443/tcp skipped\n"
+    ssh.outcome=f"VPS_FIREWALL={mode}\nVPS_RULE 80/tcp skipped\nVPS_RULE 8443/tcp skipped\n"
     uri=f"/api/hosts/{host['id']}/firewall/allow-batch"
     r=client.post(uri,headers=HEAD,json={"rules":rules(),"confirmation":True})
     assert r.status_code==200,r.text
@@ -125,11 +125,11 @@ def test_ufw_disabled_does_not_claim_rules_are_applied(batch_vps,mode):
 
 @pytest.mark.parametrize("raw",[
     "some arbitrary stdout",
-    "ND_FIREWALL=active\nND_RULE 80/tcp allowed\n",
-    "ND_FIREWALL=active\nND_RULE 80/tcp allowed\nND_RULE 8443/tcp allowed\nND_RULE 9999/tcp allowed\n",
-    "ND_FIREWALL=active\nND_RULE 80/tcp allowed\nND_RULE 80/tcp allowed\n",
-    "ND_FIREWALL=active\nND_RULE 80/tcp skipped\nND_RULE 8443/tcp skipped\n",
-    "ND_FIREWALL=unavailable\nND_RULE 80/tcp allowed\nND_RULE 8443/tcp allowed\n",
+    "VPS_FIREWALL=active\nVPS_RULE 80/tcp allowed\n",
+    "VPS_FIREWALL=active\nVPS_RULE 80/tcp allowed\nVPS_RULE 8443/tcp allowed\nVPS_RULE 9999/tcp allowed\n",
+    "VPS_FIREWALL=active\nVPS_RULE 80/tcp allowed\nVPS_RULE 80/tcp allowed\n",
+    "VPS_FIREWALL=active\nVPS_RULE 80/tcp skipped\nVPS_RULE 8443/tcp skipped\n",
+    "VPS_FIREWALL=unavailable\nVPS_RULE 80/tcp allowed\nVPS_RULE 8443/tcp allowed\n",
 ])
 def test_malformed_or_incomplete_remote_reply_fails_closed(batch_vps,raw):
     client,db,host,ssh=batch_vps

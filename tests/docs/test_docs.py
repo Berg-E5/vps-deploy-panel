@@ -47,7 +47,7 @@ class DocsTests(unittest.TestCase):
         self.assertTrue(any("root" in entry["text"].lower() for entry in records))
         self.assertTrue(any("防火墙" in entry["text"] for entry in records))
         builder.validate(self.output)
-        self.assertIn("https://berg-e5.github.io/netdeploy-ai/",
+        self.assertIn("https://berg-e5.github.io/vps-deploy-panel/",
                       (self.output / "index.html").read_text(encoding="utf-8"))
 
     def test_reject_broken_or_unsafe_links(self):
@@ -120,7 +120,7 @@ class DocsTests(unittest.TestCase):
         self.assertIsNotNone(match)
         self.assertEqual(self.config["version"], match.group(1))
         panel = (PROJECT / "app" / "static" / "index.html").read_text(encoding="utf-8")
-        self.assertIn('https://berg-e5.github.io/netdeploy-ai/', panel)
+        self.assertIn('https://berg-e5.github.io/vps-deploy-panel/', panel)
 
 
 if __name__ == "__main__":

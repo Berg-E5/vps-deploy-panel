@@ -48,7 +48,7 @@ def test_wildcard_socket_candidates_exact_port_and_no_loopback_only(tmp_path, ad
     env["PATH"] = str(mock) + os.pathsep + env.get("PATH", "")
     env["FAKE_SOCKET_LINES"] = addresses
     script = ("set -eu\n" + PUBLIC_SOCKET_CHECK +
-              "\nnetdeploy_public_socket 8443\n")
+              "\nvpsdeploy_public_socket 8443\n")
     result = subprocess.run(["bash", "-se"], input=script, text=True,
                             capture_output=True, check=False, timeout=6, env=env)
     assert (result.returncode == 0) == expected, (addresses, result.stderr)
@@ -69,7 +69,7 @@ def test_socket_check_rejects_invalid_port_without_running_ss(tmp_path):
     env["FAKE_SS_CALLED"] = str(called)
     for port in ("", "8443;id", "true", "8443.0"):
         script = "set -eu\n" + PUBLIC_SOCKET_CHECK + (
-            "\nnetdeploy_public_socket \"$USER_SUPPLIED\"\n"
+            "\nvpsdeploy_public_socket \"$USER_SUPPLIED\"\n"
         )
         env["USER_SUPPLIED"] = port
         result = subprocess.run(["bash", "-se"], input=script, text=True,
@@ -86,17 +86,17 @@ def test_https_and_read_only_scripts_use_shared_socket_check(identity):
     status = status_script(identity)
     existing_access = public_access_script(identity, 8443)
     for script in (activation, access, status, existing_access):
-        assert "netdeploy_public_socket" in script
+        assert "vpsdeploy_public_socket" in script
         assert "0.0.0.0:" in script and "[::]:" in script
         assert "__PUBLIC_SOCKET_CHECK__" not in script
         # These scripts must still verify identity over TLS to IPv4 loopback
         # before treating a wildcard (including IPv6 dual-stack) as public.
         assert "--connect-to" in script
         assert "curl --insecure" not in script and "curl -k" not in script
-    assert "netdeploy_public_socket 8443" in activation
-    assert "netdeploy_public_socket 8443" in access
-    assert 'netdeploy_public_socket "$port"' in status
-    assert "netdeploy_public_socket 8443" in existing_access
+    assert "vpsdeploy_public_socket 8443" in activation
+    assert "vpsdeploy_public_socket 8443" in access
+    assert 'vpsdeploy_public_socket "$port"' in status
+    assert "vpsdeploy_public_socket 8443" in existing_access
     assert "XUI_LISTENER_LOCAL_ONLY" in activation
     assert "XUI_LISTENER_MISSING" in activation
     assert "XUI_HTTPS_VERIFIED" in activation

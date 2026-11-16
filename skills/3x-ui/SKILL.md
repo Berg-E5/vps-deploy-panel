@@ -1,5 +1,5 @@
 ---
-name: netdeploy-3x-ui
+name: vpsdeploy-3x-ui
 description: "Explain approved, pinned non-Docker 3X-UI install and SSH-tunnel login; do not execute model commands."
 ---
 
@@ -19,7 +19,7 @@ VPS Deploy Panel 的单管理员 VPS 部署。只解释项目条件、运行结�
 5. **HTTPS 直连**：默认先完成仅本机 HTTP 监听的基础安装，再按照审批的 IP 或域名证书方案签发并核验证书/续期，成功后才能开放公网 HTTPS。已安装面板走独立 HTTPS 升级任务，不重新安装；失败保留或恢复仅本机访问。
    **NPM 模式**：新安装可选择不申请证书，运行 5 步基础安装，不执行 Certbot、ACME TCP 80；按审批使 3X-UI 面板在选定 TCP 端口公网 HTTP 监听并验证实际 socket，本机 UFW 仅按需放行该端口。结果使用真实服务器公网 IPv4 + 端口 + 原 Web 路径，不显示 SSH 隧道。Docker host 网络 NPM 仍可反代宿主机 127.0.0.1；NPM 负责 SSL。公网明文登录可能泄露管理员凭据，必须通过云安全组限制来源 IP。旧本机监听实例通过独立的两步审批任务切换，不重装；失败回退本机监听。
 
-   Debian 13 APT Certbot 4.0 不支持 IP 证书；新方案对 IP 自动安装独立 Python venv 中的已审核 Certbot 5.8.0，使用 `/etc/netdeploy/letsencrypt` 和 `netdeploy-certbot-renew.timer`，不卸载系统 Certbot；域名证书继续复用系统 Certbot 和 `certbot.timer`。旧面板只需重建并审批 HTTPS 续接计划。
+   Debian 13 APT Certbot 4.0 不支持 IP 证书；新方案对 IP 自动安装独立 Python venv 中的已审核 Certbot 5.8.0，使用 `/etc/vpsdeploy/letsencrypt` 和 `vpsdeploy-certbot-renew.timer`，不卸载系统 Certbot；域名证书继续复用系统 Certbot 和 `certbot.timer`。旧面板只需重建并审批 HTTPS 续接计划。
 
 6. **验收提醒**：依赖已装时跳过 APT，否则自动等待锁释放；HTTPS 签发前处理 UFW 80/TCP、证书验收后处理管理端口，不能替代云平台安全组。登录信息按需读取，支持一键复制。
 7. **异常处理**：Certbot 失败只能输出经过固定规则分类的安全诊断信息（如 LE_HTTP01_UNREACHABLE、LE_DNS_ERROR、LE_RATE_LIMIT），禁止把原始 ACME 验证日志直接交给 AI。用户确认修复网络或 DNS 后，再独立审批新证书计划；不得无条件重试。

@@ -8,12 +8,12 @@ continue to use the existing OS Certbot installation.
 from __future__ import annotations
 
 IP_CERTBOT_VERSION = "5.8.0"  # Published wheel, compatible with Debian 13/Python 3.13.
-IP_CERTBOT_VENV = "/opt/netdeploy-certbot/venv"
+IP_CERTBOT_VENV = "/opt/vpsdeploy-certbot/venv"
 IP_CERTBOT_BIN = f"{IP_CERTBOT_VENV}/bin/certbot"
-IP_CONFIG_DIR = "/etc/netdeploy/letsencrypt"
-IP_WORK_DIR = "/var/lib/netdeploy/certbot"
-IP_LOG_DIR = "/var/log/netdeploy/certbot"
-IP_RENEW_TIMER = "netdeploy-certbot-renew.timer"
+IP_CONFIG_DIR = "/etc/vpsdeploy/letsencrypt"
+IP_WORK_DIR = "/var/lib/vpsdeploy/certbot"
+IP_LOG_DIR = "/var/log/vpsdeploy/certbot"
+IP_RENEW_TIMER = "vpsdeploy-certbot-renew.timer"
 
 
 def cert_root(mode: str) -> str:
@@ -47,29 +47,29 @@ def certbot_command(mode: str) -> str:
 IP_BOOTSTRAP = r"""set -eu
 test "$(id -u)" = 0
 test -d /run/systemd/system || {
-    echo 'ND_CERTBOT_SYSTEMD_REQUIRED: renewal needs systemd timers' >&2; exit 31;
+    echo 'VPS_CERTBOT_SYSTEMD_REQUIRED: renewal needs systemd timers' >&2; exit 31;
 }
 export DEBIAN_FRONTEND=noninteractive
-base='/opt/netdeploy-certbot'
+base='/opt/vpsdeploy-certbot'
 venv='__VENV__'
 client='__CLIENT__'
 config='__CONFIG__'
 work='__WORK__'
 logs='__LOGS__'
-service='/etc/systemd/system/netdeploy-certbot-renew.service'
-timer='/etc/systemd/system/netdeploy-certbot-renew.timer'
+service='/etc/systemd/system/vpsdeploy-certbot-renew.service'
+timer='/etc/systemd/system/vpsdeploy-certbot-renew.timer'
 # Refuse untrusted redirections. Do not overwrite a third-party venv or unit.
 for target in "$base" "$venv" "$client" "$config" "$work" "$logs" "$service" "$timer"; do
     if test -L "$target"; then
-        echo 'ND_CERTBOT_SYMLINK_CONFLICT: unmanaged symlink detected; no changes made' >&2; exit 35
+        echo 'VPS_CERTBOT_SYMLINK_CONFLICT: unmanaged symlink detected; no changes made' >&2; exit 35
     fi
 done
-if test -e "$base" && ! test -f "$base/.netdeploy-managed"; then
-    echo 'ND_CERTBOT_DIR_CONFLICT: reserved /opt directory is not panel-managed' >&2; exit 35
+if test -e "$base" && ! test -f "$base/.vpsdeploy-managed"; then
+    echo 'VPS_CERTBOT_DIR_CONFLICT: reserved /opt directory is not panel-managed' >&2; exit 35
 fi
 for unit in "$service" "$timer"; do
     if test -e "$unit" && ! grep -Fxq '# VPS Deploy Panel managed isolated IP Certbot' "$unit"; then
-        echo 'ND_CERTBOT_UNIT_CONFLICT: existing renewal service not owned by the panel' >&2; exit 35
+        echo 'VPS_CERTBOT_UNIT_CONFLICT: existing renewal service not owned by the panel' >&2; exit 35
     fi
 done
 
@@ -88,15 +88,15 @@ if test "$ready" = no; then
         apt-get -o DPkg::Lock::Timeout=240 install -y -q python3-venv ca-certificates
     fi
     install -d -m 755 "$base"
-    touch "$base/.netdeploy-managed"
-    chmod 600 "$base/.netdeploy-managed"
+    touch "$base/.vpsdeploy-managed"
+    chmod 600 "$base/.vpsdeploy-managed"
     if ! test -x "$venv/bin/pip"; then
         python3 -m venv "$venv" || {
-            echo 'ND_CERTBOT_VENV_FAILED: Python venv unavailable (install python3-venv)' >&2; exit 31;
+            echo 'VPS_CERTBOT_VENV_FAILED: Python venv unavailable (install python3-venv)' >&2; exit 31;
         }
     fi
     if ! test -x "$venv/bin/pip"; then
-        echo 'ND_CERTBOT_PIP_MISSING: venv pip unavailable' >&2; exit 31
+        echo 'VPS_CERTBOT_PIP_MISSING: venv pip unavailable' >&2; exit 31
     fi
     # Official PyPI, fixed public Certbot release, only binary wheels.
     # Do not modify system Python, apt packages, or unrelated certificate trees.
@@ -104,21 +104,21 @@ if test "$ready" = no; then
         "$venv/bin/pip" install --no-input --disable-pip-version-check \
         --only-binary=:all: --index-url https://pypi.org/simple \
         'certbot==__VERSION__'; then
-        echo 'ND_CERTBOT_PYPI_FAILED: isolated Certbot download/install failed; retry after network fix' >&2; exit 31
+        echo 'VPS_CERTBOT_PYPI_FAILED: isolated Certbot download/install failed; retry after network fix' >&2; exit 31
     fi
 fi
 test -x "$client"
 "$client" --help all | grep -Fq -- '--ip-address' || {
-    echo 'ND_CERTBOT_IP_UNSUPPORTED: isolated Certbot does not support --ip-address' >&2; exit 31;
+    echo 'VPS_CERTBOT_IP_UNSUPPORTED: isolated Certbot does not support --ip-address' >&2; exit 31;
 }
 "$client" --help all | grep -Fq -- '--preferred-profile' || {
-    echo 'ND_CERTBOT_PROFILE_UNSUPPORTED: isolated Certbot lacks shortlived profile' >&2; exit 31;
+    echo 'VPS_CERTBOT_PROFILE_UNSUPPORTED: isolated Certbot lacks shortlived profile' >&2; exit 31;
 }
 
 # Isolate state so apt 4.x's certbot.timer does not try to renew IP lineages.
-for target in /etc/netdeploy /var/lib/netdeploy /var/log/netdeploy; do
+for target in /etc/vpsdeploy /var/lib/vpsdeploy /var/log/vpsdeploy; do
     if test -L "$target"; then
-        echo 'ND_CERTBOT_PARENT_SYMLINK: reserved parent directory is a symlink' >&2; exit 35
+        echo 'VPS_CERTBOT_PARENT_SYMLINK: reserved parent directory is a symlink' >&2; exit 35
     fi
 done
 install -d -m 700 "$config" "$work" "$logs"
@@ -142,16 +142,16 @@ OnCalendar=*-*-* 00,04,08,12,16,20:15:00
 RandomizedDelaySec=15m
 Persistent=true
 AccuracySec=5m
-Unit=netdeploy-certbot-renew.service
+Unit=vpsdeploy-certbot-renew.service
 
 [Install]
 WantedBy=timers.target
 TIMER
 chmod 644 "$service" "$timer"
 systemctl daemon-reload
-systemctl list-unit-files --no-legend netdeploy-certbot-renew.timer |
-    grep -q '^netdeploy-certbot-renew[.]timer' || {
-    echo 'ND_CERTBOT_TIMER_MISSING: isolated renewal timer not installed' >&2; exit 33;
+systemctl list-unit-files --no-legend vpsdeploy-certbot-renew.timer |
+    grep -q '^vpsdeploy-certbot-renew[.]timer' || {
+    echo 'VPS_CERTBOT_TIMER_MISSING: isolated renewal timer not installed' >&2; exit 33;
 }
 echo 'VPSDEPLOY_CERTBOT_READY: dedicated Certbot 5.3+ supports public IP certificates; separate renewal timer configured'
 """

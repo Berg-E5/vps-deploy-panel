@@ -38,11 +38,11 @@ def test_npm_new_install_actually_binds_public_http_and_stays_off_tcp80():
     scripts = "\n".join(x["script"] for x in a["steps"])
     assert "bind_local=\"n\"" in a["steps"][2]["script"]
     assert "bind_local=\"y\"" not in a["steps"][2]["script"]
-    assert "netdeploy_public_socket 8443" in a["steps"][4]["script"]
+    assert "vpsdeploy_public_socket 8443" in a["steps"][4]["script"]
     assert "ufw allow 8443/tcp" in a["steps"][4]["script"]
     assert "ufw allow 80/tcp" not in scripts
     assert "certbot certonly" not in scripts
-    assert "netdeploy-certbot-renew" not in scripts
+    assert "vpsdeploy-certbot-renew" not in scripts
     assert "XUI_PANEL_PORT=8443" in scripts
     assert a["npm_proxy"]["port"] == 8443
     assert "明文" in " ".join(a["warnings"])
@@ -65,9 +65,9 @@ def test_verified_http_status_has_no_secrets_and_requires_socket_probe():
     assert result["access_mode"] == "http"
     assert result["port"] == 8443 and result["managed"] is True
     assert "XUI_LISTENER=http" in status_script("8.8.8.8")
-    assert "netdeploy_public_socket" in status_script("8.8.8.8")
+    assert "vpsdeploy_public_socket" in status_script("8.8.8.8")
     script = public_http_access_script(8443)
-    assert "netdeploy_public_socket 8443" in script
+    assert "vpsdeploy_public_socket 8443" in script
     assert "http://127.0.0.1:8443/$path" in script
     assert "USERNAME|PASSWORD" in script
     assert public_http_url("8.8.8.8", 8443, "PanelAbc123") == (
@@ -87,7 +87,7 @@ def test_existing_http_promotion_is_two_approved_stages_and_can_roll_back():
     assert plan["executable"] and len(plan["steps"]) == 2
     assert plan["options"] == {"panel_port": 8443}
     assert "XUI_PANEL_PORT=8443" in plan["steps"][0]["script"]
-    assert "netdeploy_public_socket 8443" in plan["steps"][1]["script"]
+    assert "vpsdeploy_public_socket 8443" in plan["steps"][1]["script"]
     assert "ufw allow 8443/tcp" in plan["steps"][1]["script"]
     assert 'setting -listenIP 0.0.0.0' in plan["steps"][1]["script"]
     assert 'setting -listenIP 127.0.0.1' in plan["steps"][1]["script"]

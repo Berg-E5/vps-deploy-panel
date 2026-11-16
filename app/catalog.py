@@ -40,7 +40,7 @@ CATALOG = {
     "3x-ui-http": {
         "name": "3X-UI 公网 HTTP 直连", "subtitle": "启用已安装面板的公网 HTTP（不申请 SSL）",
         "category": "HTTP", "icon": "globe", "deployment": "install", "risk": "高", "internal": True,
-        "docs": "https://berg-e5.github.io/netdeploy-ai/deployments.html#npm",
+        "docs": "https://berg-e5.github.io/vps-deploy-panel/deployments.html#npm",
         "summary": "已有本机监听的 3X-UI 无需重装；经明确审批后开放指定端口的 HTTP，验证失败回退。",
         "requires": ["本面板管理并正在运行的 3X-UI", "原始 HTTP 仅本机监听", "用户批准明文 HTTP 风险", "云安全组管理 IP 白名单"],
     },
@@ -84,7 +84,7 @@ CATALOG = {
     "dockge-access": {
         "name": "Dockge Apps 端口与访问设置", "subtitle": "修改管理端口或访问模式（不重装）",
         "category": "容器", "icon": "lock", "deployment": "install", "internal": True, "risk": "高",
-        "docs": "https://berg-e5.github.io/netdeploy-ai/deployments.html#dockge",
+        "docs": "https://berg-e5.github.io/vps-deploy-panel/deployments.html#dockge",
         "summary": "只修改已受管理的 Dockge Apps 端口映射；失败自动回退原配置。",
         "requires": ["已有本面板部署的 Dockge Apps", "管理端已初始化", "SSH 信任正确", "TCP 端口空闲"],
     },
@@ -151,9 +151,9 @@ export DEBIAN_FRONTEND=noninteractive
 apt-get update
 apt-get install -y ca-certificates curl
 install -d -m 755 /etc/apt/keyrings
-curl --proto '=https' --tlsv1.2 -fsSL https://sing-box.app/gpg.key -o /tmp/netdeploy-sagernet.asc
-install -m 644 /tmp/netdeploy-sagernet.asc /etc/apt/keyrings/sagernet.asc
-rm -f /tmp/netdeploy-sagernet.asc
+curl --proto '=https' --tlsv1.2 -fsSL https://sing-box.app/gpg.key -o /tmp/vpsdeploy-sagernet.asc
+install -m 644 /tmp/vpsdeploy-sagernet.asc /etc/apt/keyrings/sagernet.asc
+rm -f /tmp/vpsdeploy-sagernet.asc
 cat > /etc/apt/sources.list.d/sagernet.sources <<'VPSDEPLOY_APT'
 Types: deb
 URIs: https://deb.sagernet.org/
@@ -185,7 +185,7 @@ if command -v ss >/dev/null && ss -Hlun | grep -Eq '(^|[[:space:]])[^[:space:]]*
   echo 'UDP 51820 seems occupied' >&2
   exit 16
 fi
-test ! -e /opt/netdeploy/wg-easy/compose.yaml
+test ! -e /opt/vpsdeploy/wg-easy/compose.yaml
 """,
         "timeout": 30,
     },
@@ -193,12 +193,12 @@ test ! -e /opt/netdeploy/wg-easy/compose.yaml
         "label": "写入最小权限 Docker Compose 配置",
         "script": """set -eu
 umask 077
-mkdir -p /opt/netdeploy/wg-easy
-cat > /opt/netdeploy/wg-easy/compose.yaml <<'VPSDEPLOY_WG_EASY_COMPOSE'
+mkdir -p /opt/vpsdeploy/wg-easy
+cat > /opt/vpsdeploy/wg-easy/compose.yaml <<'VPSDEPLOY_WG_EASY_COMPOSE'
 services:
   wg-easy:
     image: ghcr.io/wg-easy/wg-easy:15
-    container_name: netdeploy-wg-easy
+    container_name: vpsdeploy-wg-easy
     networks:
       wg:
         ipv4_address: 10.42.42.42
@@ -231,18 +231,18 @@ networks:
         - subnet: 10.42.42.0/24
         - subnet: fdcc:ad94:bacf:61a3::/64
 VPSDEPLOY_WG_EASY_COMPOSE
-docker compose -f /opt/netdeploy/wg-easy/compose.yaml config -q
+docker compose -f /opt/vpsdeploy/wg-easy/compose.yaml config -q
 """,
         "timeout": 30,
     },
     {
         "label": "启动 wg-easy 容器",
-        "script": "set -eu\ndocker compose -f /opt/netdeploy/wg-easy/compose.yaml up -d\n",
+        "script": "set -eu\ndocker compose -f /opt/vpsdeploy/wg-easy/compose.yaml up -d\n",
         "timeout": 300,
     },
     {
         "label": "检查容器运行状态",
-        "script": "set -eu\ntest \"$(docker inspect -f '{{.State.Running}}' netdeploy-wg-easy)\" = true\n",
+        "script": "set -eu\ntest \"$(docker inspect -f '{{.State.Running}}' vpsdeploy-wg-easy)\" = true\n",
         "timeout": 30,
     },
 ]
@@ -585,7 +585,7 @@ def build_plan(project: str, facts: dict[str, Any], options: dict | None = None)
                 "请先在云安全组限制来源为自己的管理公网 IP，再审批本机 UFW 放行指定 TCP 端口",
                 "执行后需校验真实公网监听和本机 HTTP 响应；如果失败会尝试恢复本机监听",
             ],
-            "3x-ui-https": ["公网 TCP 80 必须允许 Let’s Encrypt HTTP-01 验证（本机空闲不代表云安全组开放）；域名证书要求 DNS A 正确，公网 IP 证书使用 shortlived", "IP 证书有效期约 160 小时，必须保持 netdeploy-certbot-renew.timer 活跃（独立续期）；域名证书使用系统 certbot.timer；失败不开放公网面板",  "公网 HTTPS 管理面板属于高敏感服务，请启用强密码、双因素认证和云防火墙 IP 白名单"],
+            "3x-ui-https": ["公网 TCP 80 必须允许 Let’s Encrypt HTTP-01 验证（本机空闲不代表云安全组开放）；域名证书要求 DNS A 正确，公网 IP 证书使用 shortlived", "IP 证书有效期约 160 小时，必须保持 vpsdeploy-certbot-renew.timer 活跃（独立续期）；域名证书使用系统 certbot.timer；失败不开放公网面板",  "公网 HTTPS 管理面板属于高敏感服务，请启用强密码、双因素认证和云防火墙 IP 白名单"],
             "hysteria2": ["需要单独实现 TLS 证书、身份认证和服务器配置"],
             "logistics-quote": [
                 "从 GitHub 公开仓库的固定 commit 下载源码，校验 deploy/install.sh 的 SHA-256 后才执行；不追 main 分支，不使用 curl | bash",

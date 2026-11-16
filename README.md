@@ -6,7 +6,7 @@
 
 > **当前为 Alpha 测试版**，请先在可以备份或重装的 VPS 上试用。
 
-[📖 在线使用文档](https://berg-e5.github.io/netdeploy-ai/) · [🚀 安装教程](https://berg-e5.github.io/netdeploy-ai/installation.html) · [❓ 常见问题](https://berg-e5.github.io/netdeploy-ai/troubleshooting.html) · [💬 反馈问题](https://github.com/Berg-E5/netdeploy-ai/issues)
+[在线使用文档](https://berg-e5.github.io/vps-deploy-panel/) · [安装教程](https://berg-e5.github.io/vps-deploy-panel/installation.html) · [常见问题](https://berg-e5.github.io/vps-deploy-panel/troubleshooting.html) · [反馈问题](https://github.com/Berg-E5/vps-deploy-panel/issues)
 
 ## 我的项目
 
@@ -15,23 +15,23 @@
 | **物流报价系统** | [Berg-E5/logistics-quote](https://github.com/Berg-E5/logistics-quote) | systemd 单元 + nginx 反代 + 可选证书；装完是空站，需后台上传报价表才有价格 |
 | **音乐解锁工具** | [Berg-E5/music-unlock](https://github.com/Berg-E5/music-unlock) | 静态文件 + nginx 反代 + 可选证书；解密在浏览器里跑，文件不上传 |
 
-两个项目排在首页最前面，部署流程和下面其它项目完全一致 —— 详见 [自建项目：物流报价系统 / 音乐解锁工具](#自建项目物流报价系统--音乐解锁工具)。
+这两个排在首页最前面，部署流程和下面其它项目完全一样 —— 详见 [自建项目：物流报价系统 / 音乐解锁工具](#自建项目物流报价系统--音乐解锁工具)。
 
-## 通用项目
+## 内置项目
 
-面板也内置了一批常用开源项目：3X-UI、S-UI、sing-box、Hysteria2、wg-easy、Dockge Apps、Hiddify Manager。
+面板还带了一批常用开源项目：3X-UI、S-UI、sing-box、Hysteria2、wg-easy、Dockge Apps、Hiddify Manager。
 
 
 ## 主要功能
 
-- **VPS 管理**：添加服务器、SSH 密码/密钥连接、核对主机指纹。
-- **向导式部署**：自动检查运行环境，确认安装方案后再执行，并显示进度和日志。
+- **服务器管理**：添加服务器、SSH 密码/密钥连接、核对主机指纹。
+- **向导式部署**：先只读体检环境，确认方案后再执行，过程有进度和日志。
 - **HTTPS 证书**：3X-UI、S-UI 可自动申请 IP/域名证书，也可交给 NPM 统一管理 HTTPS。
-- **端口管理**：管理 VPS 上的 UFW 规则，提供常见云厂商安全组入口。
+- **端口管理**：管 VPS 上的 UFW 规则，顺带给出常见云厂商安全组的入口。
 - **自定义界面**：多种主题颜色、明暗模式和阅读字号。
 - **Codex AI（可选）**：使用自己的 ChatGPT 账号，通过自然语言查询任务、打开面板页面、生成待审批部署方案或分析安装日志，无需另填 API Key。
 
-## 内置的通用项目
+## 内置项目清单
 
 | 项目 | 当前支持情况 |
 | --- | --- |
@@ -45,7 +45,7 @@
 
 ## 自建项目：物流报价系统 / 音乐解锁工具
 
-这两个是 Berg 自己维护的项目，按面板的目录机制接进来，首页排在最前面。
+这两个是我自己维护的项目，按面板的目录机制接进来，首页排在最前面。
 
 | 项目 | 源码 | 部署内容 |
 | --- | --- | --- |
@@ -109,89 +109,76 @@ Windows 上 `core.autocrlf=true` 时工作区是 CRLF、索引里是 LF，
 前提是本机装了 `gh` 并登录过（`gh auth login`），token 从 `gh auth token` 取，不落在文件里。
 
 
-### 相对上游的改动
+### IPv6 VPS 支持（3X-UI / S-UI）
 
-| 改动 | 说明 |
-| --- | --- |
-| 新增两个自建项目 | 目录驱动，固定 commit + SHA-256 校验，接同一套审批与验收流程 |
-| Windows SSH 执行 | 系统里没有可执行的 OpenSSH 客户端时（只有 WindowsApps 里的副本），自动改走 Paramiko 密钥认证；主机密钥固定用同一份 known_hosts，语义不变 |
-| nginx 自启 | 安装脚本原来只 `reload` nginx，对「装了但没启动」的服务无效，站点会打不开；改为 `enable` + `restart` 并确认在运行 |
-| 验收判定 | 原来只跑 `nginx -t`，配置语法通过但服务没起来也会判通过；现在会确认 nginx 在跑，并用带 Host 头的 `curl` 打到自己的 vhost |
-| 验收端口 | 端口不再写死 8792，改为读安装脚本写下的 `data/port` |
-| 域名校验 | 补上连续点、段首段尾横线、单段超 63 字符等非法域名的拦截 |
-
-
-## IPv6 VPS 支持（3X-UI / S-UI）
-
-- 添加服务器时可填写 **公网 IPv4 或 IPv6**（例如 `2606:4700:4700::1111`，**不要加方括号**），连接过程保持 SSH 指纹核验、密码/密钥认证与部署审批。支持纯 IPv6 和双栈 VPS；连接地址由用户选择。
-- **SSH 指纹排查**：Windows `Test-NetConnection -ComputerName IPv6 -Port 22` 的 `TcpTestSucceeded=True` 只代表 TCP 端口可达，不能证明 sshd 正常协商。若步骤 2 扫描失败，可以在 PowerShell 执行 `ssh-keyscan -6 -T 15 -p 22 IPv6` 区分 SSH 协议异常与扫描超时。本面板会区分 Banner、算法和连接中断，仅对临时 Banner/握手中断在未认证阶段有限重试；扫描返回的指纹仍须去云厂商控制台独立核对，软件绝不自动信任。
-- **3X-UI**：IPv6 VPS 可选择本机 SSH 隧道、NPM 反向代理或内置自动 HTTPS。IP 证书采用约 160 小时的短有效期配置和独立 Certbot 续期；域名 HTTPS 要求 DNS AAAA 正确。HTTPS 成功会显示 `https://[IPv6]:端口/路径`（域名证书则显示域名 URL）；NPM 模式仍保持明确的公网明文 HTTP 风险提示。
-- **S-UI**：IPv6 VPS 同样可选择本机 SSH 隧道、NPM 或自动 HTTPS。签发并校验证书后才开放管理端口 2095；**订阅端口 2096 始终仅监听本机 `127.0.0.1`**。HTTPS 失败会尝试恢复本机监听；异常服务不会回退成公网明文 HTTP。
-- **自动证书检查**：IPv6 签发前验证目标地址确实分配给 VPS；若使用域名，则要求其全部 AAAA 记录指向当前 IPv6。Certbot 使用 IPv6 TCP 80 接受 HTTP-01 挑战，签发后校验可信证书链、IPv6 TLS 监听和本机公网 IPv6 连接。IPv6 IP 证书使用独立 Certbot 每四小时检查续期；域名使用系统 Certbot 定时器。
-- **上线前仍需实机验收**：UFW 必须启用 IPv6（活跃时 `/etc/default/ufw` 的 `IPV6=yes`），云厂商 IPv6 安全组需独立放行 TCP 80 和管理端口、限制管理来源；本机 curl 验证不等于已从外部网络验证。IPv6 ACME 自动化虽已有模拟测试，尚未在真实 IPv6 VPS/Let’s Encrypt 生产环境实测；建议先用可重装的测试 VPS 试用。IPv4 原流程不变。
+- 添加服务器时可以填**公网 IPv4 或 IPv6**（例如 `2606:4700:4700::1111`，**不要加方括号**）。连接过程和 IPv4 完全一样：照样核对 SSH 指纹、照样密码或密钥认证、照样要审批才执行。纯 IPv6 和双栈都能用，地址由你自己选。
+- **指纹扫不出来的时候**：Windows 的 `Test-NetConnection -ComputerName IPv6 -Port 22` 返回 `TcpTestSucceeded=True` 只说明 TCP 端口开着，不代表 sshd 能正常握手。如果第 2 步扫描失败，在 PowerShell 里跑 `ssh-keyscan -6 -T 15 -p 22 <IPv6>`，把「SSH 协议异常」和「扫描超时」分开看。本面板会区分 Banner、算法协商失败和连接中断，只在未认证阶段的临时 Banner 中断上做有限重试；**扫出来的指纹仍然要你自己去云控制台核对，程序不会替你信任**。
+- **3X-UI**：IPv6 上可选本机 SSH 隧道、NPM 反代或面板自动签证书。IP 证书用的是约 160 小时短有效期配置 + 独立的 Certbot 续期；域名证书要求 DNS 的 AAAA 记录指对。签发成功会显示 `https://[IPv6]:端口/路径`（域名证书则显示域名）；NPM 模式仍会明确提示公网明文 HTTP 的风险。
+- **S-UI**：IPv6 同样可选本机 SSH 隧道、NPM 或自动签证书。证书签发并校验通过后才开放管理端口 2095；**订阅端口 2096 始终只监听 `127.0.0.1`**。签发失败会尝试恢复本机监听，异常状态不会退化成公网明文。
+- **签发前的地址校验**：IPv6 签发前会确认目标地址确实分配给这台 VPS；用域名的话要求它的全部 AAAA 记录指向当前 IPv6。Certbot 走 IPv6 的 TCP 80 做 HTTP-01 挑战，签发后校验证书链、IPv6 TLS 监听和本机公网连接。IP 证书用独立 Certbot 每四小时检查续期，域名用系统 Certbot 定时器。
+- **上线前还是要自己验收**：UFW 必须开 IPv6（活跃时改 `/etc/default/ufw` 里的 `IPV6=yes`），云厂商 IPv6 安全组要单独放行 TCP 80 和管理端口并限制来源。本机 curl 通了不等于外网能通。IPv6 的 ACME 流程目前只有模拟测试，**还没在真实 IPv6 VPS + Let's Encrypt 生产环境里跑过**，建议先拿可重装的测试机试。IPv4 流程不受影响。
 
 ## Windows 快速开始（推荐）
 
-先安装 [Git for Windows](https://git-scm.com/downloads/win) 和 [Python 3.12+](https://www.python.org/downloads/windows/)（需包含 `py` 启动器）。
+先装 [Git for Windows](https://git-scm.com/downloads/win) 和 [Python 3.12+](https://www.python.org/downloads/windows/)（要带 `py` 启动器）。
 
 打开 **PowerShell**，依次执行：
 
 ```powershell
-git clone https://github.com/Berg-E5/netdeploy-ai.git
-cd netdeploy-ai
+git clone https://github.com/Berg-E5/vps-deploy-panel.git
+cd vps-deploy-panel
 .\QuickStart-VPSDeployPanel.bat
 ```
 
-启动后在浏览器访问 **http://127.0.0.1:8787**。Windows 本机模式首次启动可自动登录。
+启动后浏览器访问 **http://127.0.0.1:8787**。Windows 本机模式首次启动会自动登录。
 
-**以后启动或更新：** 双击项目文件夹中的 `QuickStart-VPSDeployPanel.bat`。面板正在运行时会直接打开网页。停止面板后再次双击会检查更新、备份本地数据并在后台启动。需要在终端查看输出或用 `Ctrl+C` 停止时，可单独运行 `Start-VPSDeployPanel.bat`。
+**以后启动或更新：** 双击项目文件夹里的 `QuickStart-VPSDeployPanel.bat`。面板已经在跑就直接打开网页；停过之后再双击会先检查更新、备份本地数据，再后台启动。想看终端输出或者用 `Ctrl+C` 停，就单独跑 `Start-VPSDeployPanel.bat`。
 
-## 使用 ChatGPT 订阅连接 Codex（可选）
+## 用 ChatGPT 订阅接 Codex（可选）
 
-**Windows 默认原生模式（无需 Docker）**：只需安装 Git 和 Python。运行 `QuickStart-VPSDeployPanel.bat` 后，后台自动创建专用 Python 环境并安装官方 Codex SDK，**不启动 Docker Desktop、WSL 或 Codex 桌面软件**。首次下载 SDK 的 Windows 运行组件可能需要一些时间，后台「Codex AI」可显示进度。连接自己的 ChatGPT 账号并完成首次设备码授权后，正常重启会复用登录状态（登录失效时需重新授权）。
+**Windows 默认走原生模式，不用 Docker**：装好 Git 和 Python 就行。跑 `QuickStart-VPSDeployPanel.bat` 后，后台会自己建一个独立的 Python 环境并装官方 Codex SDK —— **不需要装 Docker Desktop、WSL，也不需要装 Codex 桌面版**。首次下载 SDK 的 Windows 运行组件可能要等一会儿，后台「Codex AI」会显示进度。用你自己的 ChatGPT 账号完成一次设备码授权后，之后重启会复用登录状态（登录失效要重新授权）。
 
-旧的 `Enable-Codex-Windows.bat` 入口也会进入原生启动流程。请用普通 Windows 用户权限启动面板。
+旧的 `Enable-Codex-Windows.bat` 入口现在也会走原生启动流程。请用普通 Windows 用户权限启动面板。
 
-原生 Worker 仅监听 `127.0.0.1:8789`，使用 `%LOCALAPPDATA%\VPSDeployPanel\codex-native` 下的独立工作区、SDK 环境与登录目录；不会把面板的 SSH 密码、管理员令牌或数据库路径传给 Worker。Windows 原生沙箱开启 `prefer_mxc`，只读诊断禁止提权审批；**但同一 Windows 用户下的进程隔离不等于 Docker / 独立用户的强隔离**。请在可信的本机使用，不要把后台公开到互联网。
+原生 Worker 只监听 `127.0.0.1:8789`，工作区、SDK 环境和登录目录都在 `%LOCALAPPDATA%\VPSDeployPanel\codex-native` 下；**不会把面板的 SSH 密码、管理员令牌或数据库路径传给 Worker**。Windows 原生沙箱开了 `prefer_mxc`，只读诊断禁止提权审批 —— 但**同一 Windows 用户下的进程隔离不等于 Docker 或独立用户的强隔离**。请在自己信得过的本机上用，别把后台开到公网。
 
-如需关闭自动启动，在本机 `.env` 添加 `VPSDEPLOY_CODEX_AUTO_START=0`；不影响其他 VPS 管理功能。之前安装的 Docker 版 Worker 不会被自动卸载或清除数据，但 Windows 默认不再调用它。
+要关掉自动启动，在本机 `.env` 里加 `VPSDEPLOY_CODEX_AUTO_START=0`；不影响面板其它功能。之前装的 Docker 版 Worker 不会被自动卸载或清数据，但 Windows 默认不再调用它。
 
-**Docker / NAS 启动**：在项目私有 `.env` 中设置至少 24 位随机 `VPSDEPLOY_WORKER_TOKEN`（与管理员令牌不同），然后运行 `docker compose --profile ai up -d --build`。现有主程序不会把 SSH 密钥、数据库或 Docker Socket 挂载进 AI Worker。
+**Docker / NAS 启动**：在项目私有 `.env` 里设置至少 24 位随机 `VPSDEPLOY_WORKER_TOKEN`（要和管理员令牌不同），然后跑 `docker compose --profile ai up -d --build`。主程序不会把 SSH 密钥、数据库或 Docker Socket 挂进 AI Worker。
 
-进入后台左侧 **Codex AI** → **使用 ChatGPT 账号连接**，在浏览器打开官方验证页并输入一次性设备代码。设备码登录需要在 ChatGPT 安全设置中启用。授权后，可以输入「最近哪些部署失败了」或「为东京 VPS 生成 S-UI 部署方案」。使用面板中的 VPS 完整名称和项目名称，面板会自动只读预检并打开方案，由你审阅后确认执行。自动方案中的 3X-UI、S-UI 和 Dockge Apps 采用 SSH 隧道访问。自定义端口、证书或公网模式可打开部署向导设置。查看具体安装失败原因时，可以在对应任务中点击 **AI 只读排障**。
+进后台左侧 **Codex AI** → **使用 ChatGPT 账号连接**，浏览器会打开官方验证页，输入一次性设备代码就行。设备码登录要在 ChatGPT 安全设置里开启。授权后可以直接问「最近哪些部署失败了」「给东京那台 VPS 生成一个 S-UI 的方案」。记得用面板里的完整服务器名和项目名 —— 面板会自动做只读体检并把方案打开给你看，你审完再决定要不要执行。自动方案里的 3X-UI、S-UI 和 Dockge Apps 走 SSH 隧道访问；要自定义端口、证书或公网模式，得去部署向导里设。想看具体失败原因，在对应任务里点 **AI 只读排障**。
 
-登录凭据分别保存在 Windows 原生 Worker 的专属 `CODEX_HOME` 或 Docker/NAS Worker 的私有 `codex-auth` 卷中，退出登录可清除授权。面板指令会将输入文字、服务器名称、近期任务状态和项目名称等摘要发送给 Codex。使用「AI 只读排障」时会另外发送脱敏的日志摘录和基本系统信息。请勿在指令、名称或日志中填写凭据。ChatGPT 套餐额度有限，个人登录仅供本人使用。
+登录凭据分别存在 Windows 原生 Worker 的专属 `CODEX_HOME`、或 Docker/NAS Worker 的私有 `codex-auth` 卷里，退出登录会清掉授权。面板会把你的指令文字、服务器名称、近期任务状态和项目名称一起发给 Codex；用「AI 只读排障」时还会额外发送脱敏后的日志摘录和基本系统信息。**别在指令、名称或日志里填凭据**。ChatGPT 套餐额度有限，个人登录只能本人用。
 
-## 如何部署软件？
+## 怎么装一个项目？
 
-1. 点击 **添加 VPS**，填写服务器地址和 SSH 登录信息。
-2. 核对 **SSH 主机指纹**，检查服务器环境。
-3. 打开 **项目中心**，选择要安装的软件。
-4. 查看安装方案、确认执行，最后查看结果。
+1. 点 **添加 VPS**，填服务器地址和 SSH 登录信息。
+2. 核对 **SSH 主机指纹**，顺便做一次只读体检。
+3. 打开 **项目库**，挑要装的东西。
+4. 看安装方案，点头才执行，最后看结果。
 
-Docker / NAS 用户可参考 [Docker 部署教程](https://berg-e5.github.io/netdeploy-ai/installation.html#docker)。各项目的具体要求见 [部署文档](https://berg-e5.github.io/netdeploy-ai/deployments.html)。
+Docker / NAS 用户看 [Docker 部署教程](https://berg-e5.github.io/vps-deploy-panel/installation.html#docker)。各项目的具体要求见 [部署文档](https://berg-e5.github.io/vps-deploy-panel/deployments.html)。
 
 ## 使用前请注意
 
-- 安装任务需要相应的系统权限；部分项目要求 Debian / Ubuntu、Docker 或指定端口。
-- 本面板默认只供本机访问，**不要把管理端口直接暴露到公网**。
-- SSH 主机指纹必须通过可信渠道核对；证书签发还需正确的 IP / 域名及防火墙规则。
-- 项目尚在测试阶段，自动化测试通过不等于所有 VPS 环境都已实机验收。
+- 安装任务要相应的系统权限；部分项目要 Debian / Ubuntu、Docker 或指定端口。
+- 本面板默认只给本机访问，**别把管理端口直接开到公网**。
+- SSH 主机指纹必须走可信渠道核对；签证书还要有正确的 IP / 域名和防火墙放行。
+- 项目还在测试阶段，自动化测试过了不代表所有 VPS 环境都实机验收过。
 
 ## 开源协议与致谢
 
-本项目基于 **[slobys/netdeploy-ai](https://github.com/slobys/netdeploy-ai)** 开发（上游 MIT 协议），
-原作者版权声明与许可全文保留在 [LICENSE](LICENSE)。
+本项目基于 **[slobys/netdeploy-ai](https://github.com/slobys/netdeploy-ai)**（MIT 协议）开发。
+原作者的版权声明与许可全文保留在 [LICENSE](LICENSE)。
 
-在上游基础上，我做了这些改动：
+在这个基础上，本项目做了这些改动：
 
-- 新增 **物流报价系统** 和 **音乐解锁工具** 两个自建项目，排在首页最前。
-- 修掉 Windows 下没有可用 OpenSSH 客户端时 SSH 执行失败（改走 Paramiko 密钥认证）。
-- 修掉安装脚本只 `reload` nginx 导致「装了但没启动」时站点打不开（改为 `enable` + `restart` 并确认在运行）。
-- 验收从「只看 `nginx -t`」改为「确认 nginx 在跑 + 带 Host 头真实请求自己的 vhost」。
-- 安装脚本端口改为自动挑选并写入 `data/port`，重装时沿用原端口不再漂移。
-- 收紧域名校验（连续点、段首段尾横线、单段超 63 字符）。
-- 品牌与文档改为本项目自己的版本。
+- 新增 **物流报价系统** 与 **音乐解锁工具** 两个自建项目，排在项目库最前。
+- Windows 上没有可用 OpenSSH 客户端时，SSH 执行自动改走 Paramiko 密钥认证；主机密钥仍固定用同一份 known_hosts。
+- 安装脚本对 nginx 改为 `enable` + `restart` 并确认在运行，避免「装了但没启动」时站点打不开。
+- 验收从「只跑 `nginx -t`」改为「确认 nginx 在跑 + 带 Host 头真实请求自己的 vhost」。
+- 安装端口自动挑选并写入 `data/port`，重装时沿用原端口不再漂移。
+- 域名校验收紧（连续点、段首段尾横线、单段超 63 字符）。
 
 **开源协议：** [MIT License](LICENSE)
 

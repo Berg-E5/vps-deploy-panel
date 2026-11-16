@@ -9,10 +9,10 @@ with certificate identity validation. A bare IPv6-only listener is insufficient.
 
 PUBLIC_SOCKET_CHECK = r"""# Accept exact wildcard forms emitted by iproute2 ss.
 # This is only a *candidate*: the IPv4 curl TLS probe must also pass.
-netdeploy_public_socket() {
-    netdeploy_port="$1"
-    case "$netdeploy_port" in ''|*[!0-9]*) return 1 ;; esac
-    ss -Hltn "sport = :$netdeploy_port" | awk -v p="$netdeploy_port" '
+vpsdeploy_public_socket() {
+    vpsdeploy_port="$1"
+    case "$vpsdeploy_port" in ''|*[!0-9]*) return 1 ;; esac
+    ss -Hltn "sport = :$vpsdeploy_port" | awk -v p="$vpsdeploy_port" '
         {
             addr=$4
             if (addr == "0.0.0.0:" p ||

@@ -4,7 +4,7 @@
 <meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/>
 <meta name="referrer" content="no-referrer"/>
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; font-src 'self'; style-src 'self'; script-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'"/>
-<title>VPS Deploy Panel · VPS 智能部署平台</title>
+<title>VPS Deploy Panel · VPS 部署控制台</title>
 <script src="/static/theme.js"></script>
 <link rel="stylesheet" href="/static/app.css"/>
 <link rel="stylesheet" href="/static/app-enhanced.css"/>
@@ -16,37 +16,36 @@
 <body>
 <div id="login" class="login-overlay hidden">
   <div class="login-box">
-    <div class="brand-logo large">◇</div>
-    <h1>欢迎使用 VPS Deploy Panel</h1>
+    <div class="brand-logo large">⬢</div>
+    <h1>VPS Deploy Panel</h1>
     <p>输入部署服务启动时配置的管理员令牌</p>
     <form id="login-form">
       <label for="admin-token">管理员令牌</label>
       <input type="password" required minlength="24" id="admin-token" placeholder="VPSDEPLOY_ADMIN_TOKEN" autocomplete="off"/>
       <button class="btn primary wide" type="submit">进入控制台 →</button>
     </form>
-    <div class="login-tip">当前 Alpha 版本仅适合可信单管理员环境。请通过本地端口或 SSH 隧道访问，不要直接暴露公网。</div>
+    <div class="login-tip">当前是 Alpha，只适合单管理员的可信环境。请走本机端口或 SSH 隧道访问，别直接开在公网。</div>
   </div>
 </div>
 <div class="layout">
   <aside class="sidebar">
-    <div class="brand"><div class="brand-logo">◇</div><div><strong>VPS Deploy <span>Panel</span></strong><small>智能网络部署平台</small></div></div>
-    <div class="sidebar-caption">工作空间</div>
+    <div class="brand"><div class="brand-logo">⬢</div><div><strong>VPS Deploy <span>Panel</span></strong><small>VPS 部署控制台</small></div></div>
     <nav class="nav" aria-label="主导航">
-      <button class="nav-item active" data-nav="dashboard" aria-label="总览面板" aria-current="page" title="总览面板"><span class="nav-symbol" aria-hidden="true">▦</span> 总览面板</button>
-      <button class="nav-item" data-nav="projects" aria-label="项目中心" title="项目中心"><span class="nav-symbol" aria-hidden="true">⬡</span> 项目中心 <span class="nav-count" id="project-nav-count" aria-label="项目总数" aria-live="polite">…</span></button>
-      <button class="nav-item" data-nav="hosts" aria-label="服务器管理" title="服务器管理"><span class="nav-symbol" aria-hidden="true">▤</span> 服务器管理</button>
-      <button class="nav-item" data-nav="jobs" aria-label="部署任务" title="部署任务"><span class="nav-symbol" aria-hidden="true">≡</span> 部署任务</button>
+      <button class="nav-item active" data-nav="dashboard" aria-label="总览" aria-current="page" title="总览"><span class="nav-symbol" aria-hidden="true">▦</span> 总览</button>
+      <button class="nav-item" data-nav="projects" aria-label="项目库" title="项目库"><span class="nav-symbol" aria-hidden="true">⬡</span> 项目库 <span class="nav-count" id="project-nav-count" aria-label="项目总数" aria-live="polite">…</span></button>
+      <button class="nav-item" data-nav="hosts" aria-label="服务器" title="服务器"><span class="nav-symbol" aria-hidden="true">▤</span> 服务器</button>
+      <button class="nav-item" data-nav="jobs" aria-label="任务记录" title="任务记录"><span class="nav-symbol" aria-hidden="true">≡</span> 任务记录</button>
       <button class="nav-item" data-action="codex-chat" aria-label="Codex AI 聊天" title="Codex AI 聊天" aria-controls="codex-chat" aria-expanded="false"><span class="nav-symbol" aria-hidden="true">✦</span> Codex AI</button>
     </nav>
     <div class="sidebar-bottom">
-      <div class="agent-info"><span class="pulse"></span><div><b>安全执行模式</b><small>经审核的固定部署步骤</small></div></div>
+      <div class="agent-info"><span class="pulse"></span><div><b>受控执行</b><small>只跑固定 commit 的脚本</small></div></div>
       <button class="logout" id="logout">退出登录 ↗</button>
     </div>
   </aside>
   <div class="main">
     <header class="topbar">
-      <div class="crumb">工作空间 <span>/</span> <b id="crumb-current">总览面板</b></div>
-      <div class="top-actions"><a class="topbar-doc-link" href="https://berg-e5.github.io/netdeploy-ai/" target="_blank" rel="noopener noreferrer" aria-label="打开 VPS Deploy Panel 在线使用文档">？ 使用文档 ↗</a><div class="theme-control" id="theme-control">
+      <div class="crumb"><b id="crumb-current">总览</b></div>
+      <div class="top-actions"><a class="topbar-doc-link" href="https://berg-e5.github.io/vps-deploy-panel/" target="_blank" rel="noopener noreferrer" aria-label="打开 VPS Deploy Panel 在线使用文档">？ 使用文档 ↗</a><div class="theme-control" id="theme-control">
   <button type="button" id="theme-menu-button" class="topbar-theme-button" aria-expanded="false" aria-controls="theme-menu" aria-label="外观主题设置">
     <span class="topbar-theme-icon" aria-hidden="true">◐</span><span class="topbar-theme-text">主题</span>
   </button>
@@ -54,8 +53,8 @@
     <div class="theme-menu-head"><div><strong>外观与主题</strong><small>即时预览，自动保存至当前浏览器</small></div><span aria-hidden="true">✦</span></div>
     <p class="theme-caption" id="appearance-label">外观模式</p>
     <div class="theme-mode-options" role="group" aria-labelledby="appearance-label">
-      <button type="button" class="theme-choice" data-theme-mode="light" aria-pressed="false">☀ 明亮</button>
-      <button type="button" class="theme-choice" data-theme-mode="dark" aria-pressed="true">☾ 暗黑</button>
+      <button type="button" class="theme-choice" data-theme-mode="light" aria-pressed="false">○ 明亮</button>
+      <button type="button" class="theme-choice" data-theme-mode="dark" aria-pressed="true">● 暗黑</button>
       <button type="button" class="theme-choice" data-theme-mode="system" aria-pressed="false">◐ 跟随系统</button>
     </div>
     <p class="theme-caption" id="palette-label">主题配色</p>
@@ -76,25 +75,25 @@
     <p class="theme-font-note">推荐「舒适」：标题醒目，正文清晰，表单更好阅读。</p>
     <div class="theme-menu-foot">当前：<span id="theme-status" role="status" aria-live="polite">暗黑 · 经典蓝</span></div>
   </section>
-</div><button class="btn primary topbar-add" data-action="add-host"><span aria-hidden="true">＋</span> 添加 VPS</button><span class="tag alpha">ALPHA v0.3.31</span><button id="refresh" class="icon-button" aria-label="刷新服务器与任务数据" title="刷新服务器与任务数据">⟳</button><div class="avatar">ND</div></div>
+</div><button class="btn primary topbar-add" data-action="add-host"><span aria-hidden="true">＋</span> 添加 VPS</button><span class="tag alpha">ALPHA v1.0.0</span><button id="refresh" class="icon-button" aria-label="刷新服务器与任务数据" title="刷新服务器与任务数据">⟳</button><div class="avatar">VD</div></div>
     </header>
     <main class="content">
       <section class="hero" id="hero">
         <div class="hero-glow"></div>
-        <div class="hero-content"><div class="eyebrow"><span class="live-dot"></span> VPS DEPLOY PANEL CONTROL CENTER</div>
-          <h1>服务器管理 <em>更简单、更直观。</em></h1>
-          <p>添加或编辑 VPS、核对 SSH 指纹、验证连接与部署项目，都能在首页直接完成。</p>
-          <div class="hero-actions"><button class="btn primary" data-action="add-host">＋ 添加 VPS 服务器</button><button class="btn ghost" data-nav="projects">探索项目 →</button></div>
+        <div class="hero-content"><div class="eyebrow"><span class="live-dot"></span> 服务器与部署任务</div>
+          <h1>你的 VPS，<em>装什么由你点头。</em></h1>
+          <p>录入服务器、独立核对 SSH 指纹、只读体检环境、生成可逐条审阅的安装方案 —— 确认之后才会动手。</p>
+          <div class="hero-actions"><button class="btn primary" data-action="add-host">＋ 添加 VPS 服务器</button><button class="btn ghost" data-nav="projects">看看能装什么 →</button></div>
         </div>
-        <div class="hero-art"><div class="orbit orbit-a"></div><div class="orbit orbit-b"></div><div class="center-cube">⌘</div><div class="orbit-node node-1">⌁</div><div class="orbit-node node-2">▣</div><div class="orbit-node node-3">◈</div></div>
+        <div class="hero-art"><div class="orbit orbit-a"></div><div class="orbit orbit-b"></div><div class="center-cube">⬢</div><div class="orbit-node node-1">▪</div><div class="orbit-node node-2">▫</div><div class="orbit-node node-3">◦</div></div>
       </section>
-      <section class="section" id="hosts-section"><div class="section-heading smaller"><div><h2>我的 VPS 服务器</h2><p>连接、编辑、重装后重新核对指纹、环境检测，均可在此操作</p></div></div><div class="host-list" id="host-list"></div></section>
-      <div class="section-heading"><div><h2 id="section-title">运行概览</h2><p id="section-subtitle">集中管理服务器与自动化部署任务</p></div></div>
+      <section class="section" id="hosts-section"><div class="section-heading smaller"><div><h2>我的 VPS 服务器</h2><p>连接、编辑、重装后重新核对指纹、环境体检，均可在此操作</p></div></div><div class="host-list" id="host-list"></div></section>
+      <div class="section-heading"><div><h2 id="section-title">运行状态</h2><p id="section-subtitle">服务器状态、部署任务与最近改动</p></div></div>
       <div class="stats" id="stats"></div>
-      <section class="section" id="projects-section"><div class="section-heading smaller"><div><h2>精选部署项目</h2><p>选择经过审核的安装模板，AI 仅提供只读诊断建议</p></div><button class="text-action" data-nav="projects">查看全部项目 →</button></div><div class="project-grid" id="project-grid"></div></section>
-      <section class="section" id="jobs-section"><div class="section-heading smaller"><div><h2>最近部署任务</h2><p>审批、状态和日志都清楚可见</p></div><button class="text-action" data-nav="jobs">查看任务 →</button></div><div class="job-list" id="job-list"></div></section>
+      <section class="section" id="projects-section"><div class="section-heading smaller"><div><h2>常用项目</h2><p>每个项目都是钉死版本的部署步骤；AI 只做只读诊断，不代跑命令</p></div><button class="text-action" data-nav="projects">看全部项目 →</button></div><div class="project-grid" id="project-grid"></div></section>
+      <section class="section" id="jobs-section"><div class="section-heading smaller"><div><h2>最近的任务</h2><p>审批、状态和日志都清楚可见</p></div><button class="text-action" data-nav="jobs">看全部任务 →</button></div><div class="job-list" id="job-list"></div></section>
       <p id="project-order-status" role="status"></p>
-      <footer>VPS Deploy Panel v0.3.31 · Alpha · 不会自动执行 AI 生成的 shell 命令</footer>
+      <footer>VPS Deploy Panel v1.0.0 · Alpha · 不会自动执行 AI 生成的 shell 命令</footer>
     </main>
   </div>
 </div>

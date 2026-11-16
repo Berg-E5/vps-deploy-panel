@@ -117,7 +117,7 @@ let fingerprintRequests = 0;
 let planCreations = 0;
 let xuiStatus = {installed:false,service:'absent',managed:false,port:null,access_mode:'unavailable'};
 let returnedJobs=null;
-let runtimeVersion='0.3.31';
+let runtimeVersion='1.0.0';
 let xuiReadRequests=0;
 let suiReadRequests=0;
 let suiStatus={installed:false,service:'absent',managed:false,access_mode:'unavailable'};
@@ -255,7 +255,7 @@ const context = vm.createContext({
     if(url==='/api/hosts/1/s-ui/access'){
       suiReadRequests++;
       return {ok:true,status:200,json:async()=>({
-        username:'nd_aabbccddeeff',password:'a'.repeat(48),port:2095,
+        username:'vpsdeploy_aabbccddeeff',password:'a'.repeat(48),port:2095,
         ...(suiStatus.access_mode==='https'?{
           direct_url:'https://panel.example.com:2095/deadbeefdeadbeefdeadbeef/',
           certificate_identity:'panel.example.com',access_mode:'https'
@@ -416,9 +416,9 @@ function fingerprintFor(label) {
   await evaluate('loadAll(true)');
   assert(made.get('.tag.alpha').textContent.includes('版本不一致'));
   assert(made.get('.tag.alpha').textContent.includes('0.3.8'));
-  runtimeVersion='0.3.31';
+  runtimeVersion='1.0.0';
   await evaluate('loadAll(true)');
-  assert(made.get('.tag.alpha').textContent==='ALPHA v0.3.31');
+  assert(made.get('.tag.alpha').textContent==='ALPHA v1.0.0');
   returnedJobs=null;
   evaluate("state.token=''");
 
@@ -1043,7 +1043,7 @@ function fingerprintFor(label) {
   let saved='[]';
   context.window.localStorage={
     getItem:()=>saved,
-    setItem:(key,value)=>{assert.equal(key,'nd_project_order');saved=value;},
+    setItem:(key,value)=>{assert.equal(key,'vpsdeploy_project_order');saved=value;},
   };
   evaluate(`state.catalog=Object.fromEntries(${JSON.stringify(defaults)}.map(id=>[id,{name:id}]));
     state.section='dashboard';projectOrder=readProjectOrder();applyProjectOrder();`);

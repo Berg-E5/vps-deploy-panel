@@ -70,7 +70,7 @@ printf '%s\n' "$listen" | grep -Fxq 'listenIP: 0.0.0.0' || {
 systemctl restart x-ui
 ready=no
 for attempt in 1 2 3 4 5 6 7 8 9 10 11 12; do
-  if systemctl is-active --quiet x-ui && netdeploy_public_socket __PORT__; then
+  if systemctl is-active --quiet x-ui && vpsdeploy_public_socket __PORT__; then
     code="$(curl -4 --noproxy '*' --proto '=http' -s -o /dev/null -w '%{http_code}' \
       --max-time 6 "http://127.0.0.1:__PORT__/$web_path" 2>/dev/null)" || code=000
     case "$code" in 200|301|302|303|307|308|401|403) ready=yes;break;; esac

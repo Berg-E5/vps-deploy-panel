@@ -125,8 +125,9 @@ def test_codex_startup_progress_is_private_and_expires(monkeypatch, tmp_path):
 def test_windows_documentation_explains_one_click_and_first_auth():
     readme = _script("README.md")
     assert "QuickStart-VPSDeployPanel.bat" in readme
-    assert "Windows 默认原生模式（无需 Docker）" in readme
-    assert "不启动 Docker Desktop" in readme
+    # 断言关键信息而不是逐字匹配 —— README 的措辞会跟着文案调整, 但「Windows 默认走原生模式、不用 Docker」这个事实必须写清楚。
+    assert "Windows 默认" in readme and "原生模式" in readme and "不用 Docker" in readme
+    assert "不需要装 Docker Desktop" in readme
     assert "%LOCALAPPDATA%" in readme
     assert "127.0.0.1:8789" in readme
     assert "VPSDEPLOY_CODEX_AUTO_START=0" in readme

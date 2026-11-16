@@ -26,7 +26,7 @@ def test_ip_uses_isolated_certbot_and_domain_keeps_os_certbot():
     assert "certbot==" + IP_CERTBOT_VERSION in install
     assert 'python3 -m venv "$venv"' in install
     assert "--index-url https://pypi.org/simple" in install
-    assert "netdeploy-certbot-renew.timer" in install
+    assert "vpsdeploy-certbot-renew.timer" in install
     assert "systemctl enable --now certbot.timer" not in install
     assert "apt-get remove" not in install and "apt-get purge" not in install
     assert "/usr/bin/certbot" not in install
@@ -35,37 +35,37 @@ def test_ip_uses_isolated_certbot_and_domain_keeps_os_certbot():
     assert "--preferred-profile shortlived" in issuance
     assert '--ip-address "8.8.8.8"' in issuance
     assert f"{IP_CERTBOT_BIN} --config-dir {IP_CONFIG_DIR}" in issuance
-    assert "/etc/netdeploy/letsencrypt/live/8.8.8.8/" in issuance
-    assert "netdeploy-certbot-renew.timer" in issuance
+    assert "/etc/vpsdeploy/letsencrypt/live/8.8.8.8/" in issuance
+    assert "vpsdeploy-certbot-renew.timer" in issuance
     assert "certbot.timer" not in issuance
-    assert "/etc/netdeploy/letsencrypt/renewal-hooks/deploy/netdeploy-xui-reload.sh" in issuance
-    assert 'test "$(systemctl is-active netdeploy-certbot-renew.timer)" = active' in ip[3]["script"]
-    assert 'test -s "/etc/netdeploy/letsencrypt/live/8.8.8.8/' in ip[2]["script"]
+    assert "/etc/vpsdeploy/letsencrypt/renewal-hooks/deploy/vpsdeploy-xui-reload.sh" in issuance
+    assert 'test "$(systemctl is-active vpsdeploy-certbot-renew.timer)" = active' in ip[3]["script"]
+    assert 'test -s "/etc/vpsdeploy/letsencrypt/live/8.8.8.8/' in ip[2]["script"]
     assert "trap restore_local_listener EXIT" in ip[3]["script"]
     assert "ufw allow 8443/tcp" in ip[3]["script"]
 
     assert "certbot certonly" in domain[2]["script"]
     assert "certbot.timer" in domain[2]["script"]
     assert "/etc/letsencrypt/live/panel.example.com/" in domain[2]["script"]
-    assert "/opt/netdeploy-certbot/" not in "\n".join(x["script"] for x in domain)
-    assert "netdeploy-certbot-renew.timer" not in "\n".join(x["script"] for x in domain)
+    assert "/opt/vpsdeploy-certbot/" not in "\n".join(x["script"] for x in domain)
+    assert "vpsdeploy-certbot-renew.timer" not in "\n".join(x["script"] for x in domain)
 
 
 def test_sui_ip_uses_same_isolated_runtime_and_https_access_is_not_http():
     ip, domain = sui_https_steps("8.8.8.8"), sui_https_steps("panel.example.com","8.8.8.8")
     assert len(ip) == len(domain) == 4
-    assert "netdeploy-certbot-renew.timer" in ip[1]["script"]
+    assert "vpsdeploy-certbot-renew.timer" in ip[1]["script"]
     assert IP_CERTBOT_BIN in ip[2]["script"]
-    assert "netdeploy-sui-reload.sh" in ip[2]["script"]
-    assert "netdeploy-xui-reload.sh" not in ip[2]["script"]
-    assert "/etc/netdeploy/letsencrypt/live/8.8.8.8" in ip[2]["script"]
-    assert "/etc/netdeploy/letsencrypt/live/8.8.8.8/fullchain.pem" in ip[3]["script"]
-    assert "netdeploy-certbot-renew.timer" in ip[3]["script"]
+    assert "vpsdeploy-sui-reload.sh" in ip[2]["script"]
+    assert "vpsdeploy-xui-reload.sh" not in ip[2]["script"]
+    assert "/etc/vpsdeploy/letsencrypt/live/8.8.8.8" in ip[2]["script"]
+    assert "/etc/vpsdeploy/letsencrypt/live/8.8.8.8/fullchain.pem" in ip[3]["script"]
+    assert "vpsdeploy-certbot-renew.timer" in ip[3]["script"]
     assert '"subListen": "127.0.0.1"' in ip[3]["script"]
     assert "ufw allow 2096/tcp" not in ip[3]["script"]
     assert "/etc/letsencrypt/live/panel.example.com/" in domain[3]["script"]
     assert "certbot.timer" in domain[3]["script"]
-    assert "netdeploy-certbot-renew.timer" in SUI_STATUS
+    assert "vpsdeploy-certbot-renew.timer" in SUI_STATUS
     assert "cert_root='/etc/letsencrypt'" in SUI_STATUS
     assert 'if [ "$access_mode" = local ]; then' in SUI_ACCESS
     assert SUI_ACCESS.index('if [ "$access_mode" = local ]; then') < SUI_ACCESS.index("http://127.0.0.1:2095")
@@ -112,15 +112,15 @@ esac
 """)
     executable(fake, "systemctl", """#!/bin/sh
 printf 'systemctl %s\n' "$*" >> "$MOCK_CALLS"
-if [ "$1" = list-unit-files ]; then echo 'netdeploy-certbot-renew.timer enabled'; fi
+if [ "$1" = list-unit-files ]; then echo 'vpsdeploy-certbot-renew.timer enabled'; fi
 """)
     script = IP_BOOTSTRAP
     roots = {
-        "/opt/netdeploy-certbot": root / "opt/netdeploy-certbot",
-        "/etc/netdeploy/letsencrypt": root / "etc/netdeploy/letsencrypt",
-        "/var/lib/netdeploy/certbot": root / "var/lib/netdeploy/certbot",
-        "/var/log/netdeploy/certbot": root / "var/log/netdeploy/certbot",
-        "/etc/systemd/system/netdeploy-certbot-renew": root / "etc/systemd/system/netdeploy-certbot-renew",
+        "/opt/vpsdeploy-certbot": root / "opt/vpsdeploy-certbot",
+        "/etc/vpsdeploy/letsencrypt": root / "etc/vpsdeploy/letsencrypt",
+        "/var/lib/vpsdeploy/certbot": root / "var/lib/vpsdeploy/certbot",
+        "/var/log/vpsdeploy/certbot": root / "var/log/vpsdeploy/certbot",
+        "/etc/systemd/system/vpsdeploy-certbot-renew": root / "etc/systemd/system/vpsdeploy-certbot-renew",
         "/run/systemd/system": root / "run/systemd/system",
     }
     for source, replacement in sorted(roots.items(), key=lambda pair:-len(pair[0])):
@@ -134,21 +134,21 @@ if [ "$1" = list-unit-files ]; then echo 'netdeploy-certbot-renew.timer enabled'
 
     initial = run(fail=True)
     assert initial.returncode == 31, (initial.stdout, initial.stderr)
-    assert "ND_CERTBOT_PYPI_FAILED" in initial.stderr
-    assert not (root / "opt/netdeploy-certbot/venv/bin/certbot").exists()
-    assert not (root / "etc/netdeploy/letsencrypt/live").exists()
+    assert "VPS_CERTBOT_PYPI_FAILED" in initial.stderr
+    assert not (root / "opt/vpsdeploy-certbot/venv/bin/certbot").exists()
+    assert not (root / "etc/vpsdeploy/letsencrypt/live").exists()
 
     retry = run()
     assert retry.returncode == 0, (retry.stdout, retry.stderr)
     assert "VPSDEPLOY_CERTBOT_READY" in retry.stdout
-    client = root / "opt/netdeploy-certbot/venv/bin/certbot"
+    client = root / "opt/vpsdeploy-certbot/venv/bin/certbot"
     assert client.is_file()
-    service=(root / "etc/systemd/system/netdeploy-certbot-renew.service").read_text()
-    timer=(root / "etc/systemd/system/netdeploy-certbot-renew.timer").read_text()
-    assert "--config-dir "+str(root / "etc/netdeploy/letsencrypt") in service
+    service=(root / "etc/systemd/system/vpsdeploy-certbot-renew.service").read_text()
+    timer=(root / "etc/systemd/system/vpsdeploy-certbot-renew.timer").read_text()
+    assert "--config-dir "+str(root / "etc/vpsdeploy/letsencrypt") in service
     assert "OnCalendar=*-*-* 00,04,08,12,16,20:15:00" in timer
     assert "Persistent=true" in timer
-    assert "netdeploy-certbot-renew.service" in timer
+    assert "vpsdeploy-certbot-renew.service" in timer
     assert "/usr/bin/certbot" not in service
     count=log.read_text().count("pip ")
     second=run()

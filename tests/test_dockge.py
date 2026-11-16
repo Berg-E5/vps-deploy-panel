@@ -27,7 +27,7 @@ HOST={"name":"Dockge test","hostname":"8.8.8.8","username":"root","port":22}
 
 
 def test_reviewed_fork_source_recipe_and_local_port():
-    assert VERSION=="1.5.0-apps.1" and IMAGE=="netdeploy/dockge-apps:66aec693a974"
+    assert VERSION=="1.5.0-apps.1" and IMAGE=="vpsdeploy/dockge-apps:66aec693a974"
     assert SOURCE_REPO=="https://github.com/slobys/dockge-apps.git"
     assert SOURCE_SHA=="66aec693a974bd980f632f643586deab16932531"
     assert PORT==5001
@@ -38,7 +38,7 @@ def test_reviewed_fork_source_recipe_and_local_port():
     assert plan["eligible"] and plan["executable"] and len(plan["steps"])==4
     assert plan["options"]=={}
     scripts="\n".join(stage["script"] for stage in plan["steps"])
-    assert "netdeploy/dockge-apps:66aec693a974" in scripts
+    assert "vpsdeploy/dockge-apps:66aec693a974" in scripts
     assert "https://github.com/slobys/dockge-apps.git" in scripts
     assert "git -C \"$tmp\" -c protocol.version=2 fetch -q --depth 1 origin 66aec693a974bd980f632f643586deab16932531" in scripts
     assert "DOCKGE_SOURCE_REVISION_MISMATCH" in scripts
@@ -59,11 +59,11 @@ def test_reviewed_fork_source_recipe_and_local_port():
     assert 'docker compose -f "$root/compose.yaml" up -d --no-build' in scripts
     assert "DOCKGE_APPS_READY" in scripts
     assert "DOCKGE_EXISTS" in scripts and "DOCKGE_PORT_BUSY" in scripts
-    assert "netdeploy-dockge-apps" in scripts
+    assert "vpsdeploy-dockge-apps" in scripts
     # Refuse an upstream Dockge running under a nonstandard container name.
     assert "docker ps -a --format" in steps()[0]["script"]
-    assert "(louislam/dockge|dockge-apps|netdeploy/dockge-apps)" in steps()[0]["script"]
-    assert "(louislam/dockge|dockge-apps|netdeploy/dockge-apps)" in STATUS
+    assert "(louislam/dockge|dockge-apps|vpsdeploy/dockge-apps)" in steps()[0]["script"]
+    assert "(louislam/dockge|dockge-apps|vpsdeploy/dockge-apps)" in STATUS
     assert "DOCKGE_PORT_UNVERIFIED" in scripts
     assert "3000000" in steps()[0]["script"] and "DOCKGE_DISK_LOW" in scripts
     assert 'docker compose -f "$root/compose.yaml" stop' in scripts
@@ -137,13 +137,13 @@ def test_all_dockge_scripts_are_syntactically_valid():
 
 @pytest.mark.skipif(sys.platform=="win32" or not shutil.which("bash"),reason="Linux Bash port guard")
 @pytest.mark.parametrize("bindings,image_name,expected", [
-    ('{"5001/tcp":[{"HostIp":"127.0.0.1","HostPort":"5001"}]}','netdeploy/dockge-apps:66aec693a974',True),
-    ('{"5001/tcp":[{"HostIp":"0.0.0.0","HostPort":"5001"}]}','netdeploy/dockge-apps:66aec693a974',False),
-    ('{"5001/tcp":[{"HostIp":"::","HostPort":"5001"}]}','netdeploy/dockge-apps:66aec693a974',False),
-    ('{"5001/tcp":[{"HostIp":"127.0.0.1","HostPort":"5001"}],"8080/tcp":[{"HostIp":"0.0.0.0","HostPort":"8080"}]}','netdeploy/dockge-apps:66aec693a974',False),
-    ('{"5001/tcp":[{"HostIp":"127.0.0.1","HostPort":"5002"}]}','netdeploy/dockge-apps:66aec693a974',False),
+    ('{"5001/tcp":[{"HostIp":"127.0.0.1","HostPort":"5001"}]}','vpsdeploy/dockge-apps:66aec693a974',True),
+    ('{"5001/tcp":[{"HostIp":"0.0.0.0","HostPort":"5001"}]}','vpsdeploy/dockge-apps:66aec693a974',False),
+    ('{"5001/tcp":[{"HostIp":"::","HostPort":"5001"}]}','vpsdeploy/dockge-apps:66aec693a974',False),
+    ('{"5001/tcp":[{"HostIp":"127.0.0.1","HostPort":"5001"}],"8080/tcp":[{"HostIp":"0.0.0.0","HostPort":"8080"}]}','vpsdeploy/dockge-apps:66aec693a974',False),
+    ('{"5001/tcp":[{"HostIp":"127.0.0.1","HostPort":"5002"}]}','vpsdeploy/dockge-apps:66aec693a974',False),
     ('{"5001/tcp":[{"HostIp":"127.0.0.1","HostPort":"5001"}]}','louislam/dockge:1.5.0',False),
-    ('{}','netdeploy/dockge-apps:66aec693a974',False),
+    ('{}','vpsdeploy/dockge-apps:66aec693a974',False),
 ])
 def test_real_shell_port_guard_rejects_unexpected_public_bindings(tmp_path,bindings,image_name,expected):
     import os

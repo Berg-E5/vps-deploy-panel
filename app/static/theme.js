@@ -5,9 +5,9 @@
   const MODES = new Set(['dark', 'light', 'system']);
   const COLORS = new Set(['blue', 'violet', 'teal', 'emerald', 'rose', 'amber']);
   const FONT_SIZES = new Set(['standard', 'comfortable', 'large']);
-  const MODE_KEY = 'netdeploy-ui-mode-v1';
-  const COLOR_KEY = 'netdeploy-ui-color-v1';
-  const FONT_KEY = 'netdeploy-ui-font-size-v1';
+  const MODE_KEY = 'vpsdeploy-ui-mode-v1';
+  const COLOR_KEY = 'vpsdeploy-ui-color-v1';
+  const FONT_KEY = 'vpsdeploy-ui-font-size-v1';
   const DEFAULT_MODE = 'dark'; // Preserve the existing dark-blue appearance.
   const DEFAULT_COLOR = 'blue';
   const DEFAULT_FONT_SIZE = 'comfortable'; // Readable 14–16px text for new and existing users.

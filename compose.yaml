@@ -1,7 +1,7 @@
 services:
-  netdeploy:
+  vpsdeploy:
     build: .
-    container_name: netdeploy-ai
+    container_name: vpsdeploy-panel
     restart: unless-stopped
     ports:
       - '127.0.0.1:8787:8787'
@@ -12,7 +12,7 @@ services:
       VPSDEPLOY_WORKER_TOKEN: ${VPSDEPLOY_WORKER_TOKEN:-${NETDEPLOY_WORKER_TOKEN:-}}
       VPSDEPLOY_SSH_KEY_FILE: /run/secrets/ssh_key
     volumes:
-      - ./data:/srv/netdeploy/data
+      - ./data:/srv/vpsdeploy/data
       # Directory exists even when using password-only authentication.
       # Optional dedicated private key at ./secrets/ssh_key for key login.
       - ./secrets:/run/secrets:ro

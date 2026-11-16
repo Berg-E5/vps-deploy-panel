@@ -22,7 +22,7 @@ ARTIFACTS = {
     "arm64": ("arm64", "d5b644dc138ee59ea7825c6e323e3757ea400147e930757df208a4f126a78aea"),
 }
 INSTALL_ROOT = "/usr/local/s-ui"
-RESULT_FILE = "/var/lib/netdeploy/s-ui/install-result.env"
+RESULT_FILE = "/var/lib/vpsdeploy/s-ui/install-result.env"
 
 SERVICE_UNIT = """[Unit]
 Description=VPS Deploy Panel s-ui Service (pinned 1.6.6)
@@ -65,8 +65,8 @@ test ! -e /usr/local/s-ui
 test ! -e /etc/s-ui
 test ! -e /etc/systemd/system/s-ui.service
 test ! -e /usr/bin/s-ui
-test ! -e /var/lib/netdeploy/s-ui/install-result.env
-for target in /usr/local/s-ui /etc/s-ui /usr/bin/s-ui /etc/systemd/system/s-ui.service /var/lib/netdeploy/s-ui/install-result.env; do
+test ! -e /var/lib/vpsdeploy/s-ui/install-result.env
+for target in /usr/local/s-ui /etc/s-ui /usr/bin/s-ui /etc/systemd/system/s-ui.service /var/lib/vpsdeploy/s-ui/install-result.env; do
     if test -L "$target"; then echo 'SUI_SYMLINK_CONFLICT: refuse to overwrite links' >&2; exit 13; fi
 done
 if systemctl list-unit-files --no-legend s-ui.service 2>/dev/null | grep -q '^s-ui[.]service'; then
@@ -100,9 +100,9 @@ fi
 
 DOWNLOAD = r"""set -eu
 umask 077
-install -d -m 700 /var/lib/netdeploy/s-ui
-file='/var/lib/netdeploy/s-ui/__ASSET__'
-temp="$(mktemp '/var/lib/netdeploy/s-ui/.download.XXXXXXXX')"
+install -d -m 700 /var/lib/vpsdeploy/s-ui
+file='/var/lib/vpsdeploy/s-ui/__ASSET__'
+temp="$(mktemp '/var/lib/vpsdeploy/s-ui/.download.XXXXXXXX')"
 trap 'rm -f "$temp"' EXIT
 curl --proto '=https' --tlsv1.2 --fail --location --silent --show-error \
     --retry 3 --connect-timeout 15 --max-time 240 \
@@ -142,10 +142,10 @@ umask 077
 test "$(id -u)" = 0
 test ! -e /usr/local/s-ui
 test ! -e /etc/systemd/system/s-ui.service
-archive='/var/lib/netdeploy/s-ui/__ASSET__'
+archive='/var/lib/vpsdeploy/s-ui/__ASSET__'
 test -s "$archive"
 printf '%s  %s\n' '__DIGEST__' "$archive" | sha256sum -c - >/dev/null
-stage="$(mktemp -d '/var/lib/netdeploy/s-ui/.unpack.XXXXXXXX')"
+stage="$(mktemp -d '/var/lib/vpsdeploy/s-ui/.unpack.XXXXXXXX')"
 trap 'rm -rf "$stage"' EXIT
 # Extract regular files only; do not follow archive symlinks or paths.
 python3 - "$archive" "$stage" <<'PY'
@@ -237,8 +237,8 @@ try:
 finally:
     db.close()
 PY
-install -d -m 700 /var/lib/netdeploy/s-ui
-record='/var/lib/netdeploy/s-ui/install-result.env'
+install -d -m 700 /var/lib/vpsdeploy/s-ui
+record='/var/lib/vpsdeploy/s-ui/install-result.env'
 test ! -e "$record"
 {
  printf 'SUI_PANEL_PORT=2095\n'
@@ -259,7 +259,7 @@ echo 'SUI_CONFIGURED: random admin, private web path and localhost-only listener
 VALIDATE = r"""set -eu
 __LOCAL_GUARD__
 test "$(id -u)" = 0
-record='/var/lib/netdeploy/s-ui/install-result.env'
+record='/var/lib/vpsdeploy/s-ui/install-result.env'
 test -f "$record" && test "$(stat -c %a "$record")" = 600
 systemctl enable s-ui >/dev/null
 systemctl start s-ui >/dev/null
@@ -295,7 +295,7 @@ HTTPS_STATUS_GUARD = r'''# HTTPS is valid only when the certificate, renewal tim
 # real IPv4 TLS handshake all agree. No credentials are returned by this check.
 __PUBLIC_SOCKET_CHECK__
 sui_https_verified() {
-    record='/var/lib/netdeploy/s-ui/install-result.env'
+    record='/var/lib/vpsdeploy/s-ui/install-result.env'
     test -f "$record" && test ! -L "$record" &&
         test "$(stat -c %u "$record")" = 0 &&
         test "$(stat -c %a "$record")" = 600 || return 1
@@ -328,7 +328,7 @@ sui_https_verified() {
     systemctl is-active --quiet s-ui || return 1
     test "$(systemctl is-active "$timer")" = active || return 1
     test "$(ss -Hltn 'sport = :2096' | awk '{print $4}')" = "127.0.0.1:2096" || return 1
-    netdeploy_public_socket 2095 || return 1
+    vpsdeploy_public_socket 2095 || return 1
     cert="$cert_root/live/$identity/fullchain.pem"
     key="$cert_root/live/$identity/privkey.pem"
     test -s "$cert" && test -s "$key" || return 1
@@ -368,8 +368,8 @@ if test ! -x /usr/local/s-ui/sui; then
 fi
 echo 'SUI_INSTALLED=yes'
 if systemctl is-active --quiet s-ui; then echo 'SUI_SERVICE=active'; else echo 'SUI_SERVICE=inactive'; fi
-if test -f /var/lib/netdeploy/s-ui/install-result.env &&
-   test "$(stat -c %a /var/lib/netdeploy/s-ui/install-result.env)" = 600; then
+if test -f /var/lib/vpsdeploy/s-ui/install-result.env &&
+   test "$(stat -c %a /var/lib/vpsdeploy/s-ui/install-result.env)" = 600; then
     echo 'SUI_MANAGED=yes'
 else
     echo 'SUI_MANAGED=no'
@@ -389,8 +389,8 @@ __LOCAL_GUARD__
 __HTTPS_GUARD__
 test "$(id -u)" = 0
 test -x /usr/local/s-ui/sui
-test -f /var/lib/netdeploy/s-ui/install-result.env
-test "$(stat -c %a /var/lib/netdeploy/s-ui/install-result.env)" = 600
+test -f /var/lib/vpsdeploy/s-ui/install-result.env
+test "$(stat -c %a /var/lib/vpsdeploy/s-ui/install-result.env)" = 600
 systemctl is-active --quiet s-ui
 if sui_local_listeners_only; then
     access_mode=local
@@ -400,7 +400,7 @@ else
     echo 'SUI_ACCESS_UNVERIFIED: neither safe localhost nor verified HTTPS' >&2
     exit 49
 fi
-record='/var/lib/netdeploy/s-ui/install-result.env'
+record='/var/lib/vpsdeploy/s-ui/install-result.env'
 # Only audited, generated alphanumeric entries are accepted.
 username="$(sed -n 's/^SUI_USERNAME=//p' "$record")"
 password="$(sed -n 's/^SUI_PASSWORD=//p' "$record")"

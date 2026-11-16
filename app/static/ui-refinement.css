@@ -3,10 +3,10 @@
    Preserve all route, deployment, certificate and SSH behavior. */
 
 :root {
-  --nd-card-radius: 14px;
-  --nd-control-radius: 10px;
-  --nd-hover-tint: color-mix(in srgb, var(--theme-action) 6%, var(--theme-panel));
-  --nd-focus-ring: color-mix(in srgb, var(--theme-action) 26%, transparent);
+  --vps-card-radius: 14px;
+  --vps-control-radius: 10px;
+  --vps-hover-tint: color-mix(in srgb, var(--theme-action) 6%, var(--theme-panel));
+  --vps-focus-ring: color-mix(in srgb, var(--theme-action) 26%, transparent);
 }
 
 /* Layout: responsive content widths without oversized empty cards. */
@@ -31,7 +31,7 @@
 }
 .stats { gap: 12px; }
 .stat, .host-item, .project, .job-item {
-  border-radius: var(--nd-card-radius);
+  border-radius: var(--vps-card-radius);
 }
 .stat {
   display: flex;
@@ -85,7 +85,7 @@
   height: 36px;
   padding: 0;
   border: 1px solid var(--theme-line);
-  border-radius: var(--nd-control-radius);
+  border-radius: var(--vps-control-radius);
   background: var(--theme-panel-2);
   color: var(--theme-secondary);
   cursor: grab;
@@ -124,7 +124,7 @@
   min-height: 72px;
   padding: 8px;
   border: 1px dashed var(--theme-line-strong);
-  border-radius: var(--nd-card-radius);
+  border-radius: var(--vps-card-radius);
   color: var(--theme-accent);
   background: transparent;
   font-size: 32px;
@@ -168,14 +168,14 @@
 .server-project-choice {
   border-color: var(--theme-line);
   background: var(--theme-panel-2);
-  border-radius: var(--nd-card-radius);
+  border-radius: var(--vps-card-radius);
   min-height: 145px;
   padding: 17px;
   gap: 9px;
 }
 .server-project-choice:hover {
   border-color: var(--theme-line-strong);
-  background: var(--nd-hover-tint);
+  background: var(--vps-hover-tint);
   transform: translateY(-1px);
 }
 .server-project-choice strong { line-height: 1.4; }
@@ -221,7 +221,7 @@
 /* One coherent action hierarchy across dashboard and deployment dialogs. */
 .btn, .topbar-doc-link, .topbar-theme-button,
 .icon-button, .close, .server-tab {
-  border-radius: var(--nd-control-radius);
+  border-radius: var(--vps-control-radius);
   min-height: 42px;
 }
 .btn {
@@ -248,7 +248,7 @@
 }
 .btn.subtle:hover:not(:disabled), .modal .btn.ghost:hover:not(:disabled) {
   color: var(--theme-title);
-  background: var(--nd-hover-tint);
+  background: var(--vps-hover-tint);
   border-color: var(--theme-action);
 }
 .btn.danger {
@@ -262,7 +262,7 @@
 .theme-swatch:focus-visible, .theme-choice:focus-visible {
   outline: 2px solid var(--theme-accent);
   outline-offset: 3px;
-  box-shadow: 0 0 0 4px var(--nd-focus-ring);
+  box-shadow: 0 0 0 4px var(--vps-focus-ring);
 }
 .text-action {
   display: inline-flex;
@@ -273,7 +273,7 @@
   line-height: 1.4;
   text-align: left;
 }
-.text-action:hover { background: var(--nd-hover-tint); }
+.text-action:hover { background: var(--vps-hover-tint); }
 .nav-item:hover { transform: none; }
 .nav-item.active { font-weight: 750; }
 .nav-count {
@@ -296,7 +296,7 @@
 .form-group input, .form-group select, .form-group textarea,
 .login-box input, .xui-info-row > input {
   min-height: 46px;
-  border-radius: var(--nd-control-radius);
+  border-radius: var(--vps-control-radius);
   border-color: var(--theme-line-strong);
   background: var(--theme-input);
   color: var(--theme-title);
@@ -307,7 +307,7 @@
   border-color: var(--theme-action);
   outline: 2px solid var(--theme-accent);
   outline-offset: 1px;
-  box-shadow: 0 0 0 4px var(--nd-focus-ring);
+  box-shadow: 0 0 0 4px var(--vps-focus-ring);
 }
 .form-group input:is([type="checkbox"], [type="radio"]) {
   min-height: auto;
@@ -354,12 +354,12 @@
 .modal-tip {
   padding: 13px 16px;
   border-inline-start: 3px solid var(--theme-line-strong);
-  border-radius: var(--nd-control-radius);
+  border-radius: var(--vps-control-radius);
   line-height: 1.7;
 }
 .modal-tip.warning { border-inline-start-color: var(--theme-warning-line); }
 .plan-overview {
-  border-radius: var(--nd-card-radius);
+  border-radius: var(--vps-card-radius);
   border-color: var(--theme-line);
   margin: 16px 0;
 }
@@ -424,7 +424,7 @@
   color: var(--theme-title);
   background: var(--theme-panel-2);
   border: 1px solid var(--theme-line-strong);
-  border-radius: var(--nd-control-radius);
+  border-radius: var(--vps-control-radius);
   padding: 16px;
   margin-block: 6px 14px;
   text-align: center;

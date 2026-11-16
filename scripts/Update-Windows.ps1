@@ -15,8 +15,8 @@ try {
         throw '请在 VPS Deploy Panel 仓库根目录执行更新。'
     }
     $origin = (& git -C $root remote get-url origin).Trim()
-    if ($LASTEXITCODE -ne 0 -or $origin -notmatch '(^https://github\.com/(slobys|Berg-E5)/netdeploy-ai(\.git)?$|^git@github\.com:(slobys|Berg-E5)/netdeploy-ai(\.git)?$)') {
-        throw 'origin 不是本项目仓库（slobys/netdeploy-ai 或 Berg-E5/netdeploy-ai），已停止更新以防误操作。'
+    if ($LASTEXITCODE -ne 0 -or $origin -notmatch '(^https://github\.com/[^/]+/vps-deploy-panel(\.git)?$|^git@github\.com:[^/]+/vps-deploy-panel(\.git)?$)') {
+        throw 'origin 不是本项目仓库（应为 .../vps-deploy-panel），已停止更新以防误操作。'
     }
     $branch = (& git -C $root branch --show-current).Trim()
     if ($branch -ne 'main') { throw '自动更新仅支持 main 分支，其他分支请手动更新。' }
@@ -47,7 +47,7 @@ try {
         $backupRoot = Join-Path $root 'backups'
         New-Item -ItemType Directory -Path $backupRoot -Force | Out-Null
         $stamp = Get-Date -Format 'yyyyMMdd-HHmmss'
-        $archive = Join-Path $backupRoot "netdeploy-data-$stamp.zip"
+        $archive = Join-Path $backupRoot "vpsdeploy-data-$stamp.zip"
         Compress-Archive -Path $dataPath -DestinationPath $archive -ErrorAction Stop
         Write-Host "[VPS Deploy Panel] 旧数据已备份到 $archive"
     }

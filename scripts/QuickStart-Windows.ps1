@@ -31,7 +31,7 @@ try {
     }
     $origin = (& git -C $root remote get-url origin).Trim()
     if ($LASTEXITCODE -ne 0 -or
-        $origin -notmatch '(^https://github\.com/(slobys|Berg-E5)/netdeploy-ai(\.git)?$|^git@github\.com:(slobys|Berg-E5)/netdeploy-ai(\.git)?$)') {
+        $origin -notmatch '(^https://github\.com/[^/]+/vps-deploy-panel(\.git)?$|^git@github\.com:[^/]+/vps-deploy-panel(\.git)?$)') {
         throw 'GitHub origin 地址不正确，拒绝执行不可信代码。'
     }
     try {

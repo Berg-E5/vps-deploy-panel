@@ -68,7 +68,7 @@ def run_hiddify_precheck(tmp_path, bash_path):
     (tmp_path / "meminfo").write_bytes(b"MemTotal: 2000000 kB\n")
     precheck = PRECHECK.replace("/etc/os-release", "./os-release")
     precheck = precheck.replace("/proc/meminfo", "./meminfo").replace("/proc/", "./proc/")
-    for prefix in ("/opt/hiddify", "/usr/bin/hiddify", "/usr/local/bin/hiddify", "/var/log/netdeploy-hiddify"):
+    for prefix in ("/opt/hiddify", "/usr/bin/hiddify", "/usr/local/bin/hiddify", "/var/log/vpsdeploy-hiddify"):
         precheck = precheck.replace(prefix, "." + prefix)
 
     fake_vps = r"""
@@ -82,11 +82,11 @@ ps() { echo systemd; }
 systemd-detect-virt() { return 1; }
 ss() {
   echo 'tcp LISTEN 0 128 0.0.0.0:22 0.0.0.0:*'
-  printf '%s\n' "$ND_LISTENERS"
+  printf '%s\n' "$VPS_LISTENERS"
 }
 readlink() {
   case "$1" in
-    ./proc/1473/exe) printf '%s\n' "$ND_METRICS_EXE" ;;
+    ./proc/1473/exe) printf '%s\n' "$VPS_METRICS_EXE" ;;
     ./proc/1487/exe) echo /opt/google-cloud-ops-agent/subagents/fluent-bit/bin/fluent-bit ;;
     *) return 1 ;;
   esac
@@ -94,8 +94,8 @@ readlink() {
 systemctl() {
   # Ubuntu 24.04 exits with 1 if the name filter finds no unit files.
   case "$*" in *'hiddify*.service'*) return 1 ;; esac
-  printf '%s\n' "$ND_UNIT_LIST"
-  return "$ND_UNIT_STATUS"
+  printf '%s\n' "$VPS_UNIT_LIST"
+  return "$VPS_UNIT_STATUS"
 }
 """
     def run(
@@ -112,8 +112,8 @@ systemctl() {
             input=(fake_vps + precheck + "\nhiddify_precheck\n").encode("ascii"),
             cwd=tmp_path, capture_output=True, timeout=10, check=True,
             env={**os.environ, "SSH_CONNECTION": "192.0.2.10 54321 192.0.2.20 22",
-                 "ND_UNIT_LIST": unit_list, "ND_UNIT_STATUS": unit_status,
-                 "ND_LISTENERS": listeners, "ND_METRICS_EXE": metrics_exe},
+                 "VPS_UNIT_LIST": unit_list, "VPS_UNIT_STATUS": unit_status,
+                 "VPS_LISTENERS": listeners, "VPS_METRICS_EXE": metrics_exe},
         )
         return result.stdout.decode("ascii").strip()
 
@@ -154,8 +154,8 @@ def test_hiddify_precheck_exempts_only_verified_ops_agent_listeners(
 
 def test_hiddify_installer_keeps_staging_private_and_uses_service_compatible_umask(tmp_path, bash_path):
     install = steps()[0]["script"].replace(PRECHECK, "\nhiddify_precheck() { echo ready; }\n")
-    install = install.replace("/run/lock/netdeploy-hiddify.lock", "./install.lock")
-    install = install.replace("/var/log/netdeploy-hiddify.XXXXXX.log", "../netdeploy-hiddify.XXXXXX.log")
+    install = install.replace("/run/lock/vpsdeploy-hiddify.lock", "./install.lock")
+    install = install.replace("/var/log/vpsdeploy-hiddify.XXXXXX.log", "../vpsdeploy-hiddify.XXXXXX.log")
     install = install.replace("""trap 'rm -rf -- "$work"' EXIT""", "")
     fake_vps = r"""
 export TMPDIR="$PWD"
@@ -184,7 +184,7 @@ timeout() { shift 3; "$@"; }
         cwd=tmp_path, capture_output=True, timeout=10, check=True,
     )
     assert result.stderr.splitlines() == [b"staging_mask=0077", b"staging_mask=0077"]
-    log, = tmp_path.glob("netdeploy-hiddify.*.log")
+    log, = tmp_path.glob("vpsdeploy-hiddify.*.log")
     assert log.read_bytes() == b"installer_mask=0022\n"
     if os.name != "nt":
         assert log.stat().st_mode & 0o777 == 0o600
@@ -251,7 +251,7 @@ def test_hiddify_prefers_a_trusted_domain_that_resolves_only_to_the_vps(monkeypa
 
 
 def test_existing_hiddify_status_is_read_only_and_bound_to_the_saved_host(tmp_path, monkeypatch):
-    db = Store(str(tmp_path / "netdeploy.sqlite"))
+    db = Store(str(tmp_path / "vpsdeploy.sqlite"))
     monkeypatch.setattr(main, "store", db)
     host = db.add_host({"name": "Test VPS", "hostname": "192.0.2.10", "port": 22, "username": "root"})
     plan = build_plan("hiddify", {**FACTS, "HIDDIFY_STATE": "existing"})
@@ -291,7 +291,7 @@ def test_existing_hiddify_status_is_read_only_and_bound_to_the_saved_host(tmp_pa
 
 
 def test_hiddify_approval_rechecks_the_dedicated_host(tmp_path, monkeypatch):
-    db = Store(str(tmp_path / "netdeploy.sqlite"))
+    db = Store(str(tmp_path / "vpsdeploy.sqlite"))
     monkeypatch.setattr(main, "store", db)
     host = db.add_host({
         "name": "Test VPS", "hostname": "192.0.2.10",

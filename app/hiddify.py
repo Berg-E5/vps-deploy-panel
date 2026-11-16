@@ -142,7 +142,7 @@ hiddify_precheck() {
   for path in /opt/hiddify-manager /opt/hiddify-config /opt/hiddify-server /usr/bin/hiddify /usr/local/bin/hiddify; do
     if [ -e "$path" ] || [ -L "$path" ]; then echo existing; return; fi
   done
-  if compgen -G '/var/log/netdeploy-hiddify.*.log' >/dev/null; then echo existing; return; fi
+  if compgen -G '/var/log/vpsdeploy-hiddify.*.log' >/dev/null; then echo existing; return; fi
   # systemd 255 returns 1 when a name filter matches no unit files.
   if ! units=$(systemctl list-unit-files --type=service --no-legend --no-pager); then echo unit_files; return; fi
   if [[ "$units" =~ (^|$'\n')[[:blank:]]*hiddify[^[:space:]]*[.]service([[:space:]]|$) ]]; then
@@ -190,7 +190,7 @@ test "$(id -u)" = 0
 case "$(uname -m)" in x86_64|aarch64|arm64) ;; *) exit 1 ;; esac
 """ + PRECHECK + f"""
 command -v flock >/dev/null 2>&1
-exec 9>/run/lock/netdeploy-hiddify.lock
+exec 9>/run/lock/vpsdeploy-hiddify.lock
 flock -n 9 || {{ echo '已有 Hiddify 安装进程' >&2; exit 1; }}
 check_host() {{
   state=$(hiddify_precheck)
@@ -205,7 +205,7 @@ cd "$work"
 curl --proto '=https' --proto-redir '=https' -fsSL --connect-timeout 15 --max-time 90 --retry 2 -o release.sh '{RELEASE_INSTALLER}'
 test -s release.sh
 check_host
-log=$(mktemp /var/log/netdeploy-hiddify.XXXXXX.log)
+log=$(mktemp /var/log/vpsdeploy-hiddify.XXXXXX.log)
 # The upstream installer creates runtimes for unprivileged systemd services.
 # Keep the panel's staging and log private without passing that mask to Hiddify.
 if (umask 022 && NO_UI=true timeout -k 20s 35m bash ./release.sh) </dev/null >"$log" 2>&1; then

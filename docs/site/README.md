@@ -1,6 +1,6 @@
 # VPS Deploy Panel · 中文在线使用文档
 
-计划站点：https://berg-e5.github.io/netdeploy-ai/ （GitHub Pages）
+计划站点：https://berg-e5.github.io/vps-deploy-panel/ （GitHub Pages）
 
 包含文档首页、安装与更新、第一次部署、VPS/SSH、端口防火墙、各项目部署、Google Cloud、故障排查、安全与限制。
 

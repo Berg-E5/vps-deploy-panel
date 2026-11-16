@@ -66,7 +66,7 @@ if [ "$mode" = enable ]; then
   if [ -z "$sshd_bin" ] && [ -x /usr/sbin/sshd ]; then sshd_bin=/usr/sbin/sshd; fi
   [ -n "$sshd_bin" ] || die "找不到 sshd，拒绝修改认证配置"
   command -v systemctl >/dev/null 2>&1 || die "没有 systemctl，拒绝自动变更"
-  conf=/etc/ssh/sshd_config.d/00-netdeploy-root-password.conf
+  conf=/etc/ssh/sshd_config.d/00-vpsdeploy-root-password.conf
   [ ! -e "$conf" ] && [ ! -L "$conf" ] || die "已有本面板的 SSH 配置文件；请人工检查，不覆盖"
   echo
   echo "仅在你已确认云防火墙限制与恢复方式后继续。"
@@ -81,7 +81,7 @@ if [ "$mode" = password ]; then
   exit 0
 fi
 
-backup_dir=/var/backups/netdeploy-root-ssh
+backup_dir=/var/backups/vpsdeploy-root-ssh
 install -d -m 0700 "$backup_dir"
 timestamp="$(date -u +%Y%m%dT%H%M%SZ)"
 backup="$backup_dir/sshd_config.$timestamp"

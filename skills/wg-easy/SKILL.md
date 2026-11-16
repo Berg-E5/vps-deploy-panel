@@ -1,5 +1,5 @@
 ---
-name: netdeploy-wg-easy
+name: vpsdeploy-wg-easy
 description: "When user selects wg-easy WireGuard Docker deployment on a Linux VPS; check docker, root privileges, UDP 51820, and insist on secure first-run setup."
 ---
 

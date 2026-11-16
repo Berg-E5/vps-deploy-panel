@@ -12,12 +12,12 @@ import re
 VERSION = "1.5.0-apps.1"
 SOURCE_REPO = "https://github.com/slobys/dockge-apps.git"
 SOURCE_SHA = "66aec693a974bd980f632f643586deab16932531"
-IMAGE = f"netdeploy/dockge-apps:{SOURCE_SHA[:12]}"
+IMAGE = f"vpsdeploy/dockge-apps:{SOURCE_SHA[:12]}"
 PORT = 5001  # The upstream container port stays fixed; host port is configurable.
-ROOT_DIR = "/opt/netdeploy/dockge"
+ROOT_DIR = "/opt/vpsdeploy/dockge"
 SOURCE_DIR = f"{ROOT_DIR}/source"
 STACKS_DIR = "/opt/stacks"
-CONTAINER = "netdeploy-dockge-apps"
+CONTAINER = "vpsdeploy-dockge-apps"
 MANAGED_MARK = f"VPS Deploy Panel managed Dockge Apps {SOURCE_SHA}"
 
 
@@ -36,7 +36,7 @@ test "$(df -Pk / | awk 'NR==2 {print $4}')" -ge 3000000 || {
 case "$(uname -m)" in x86_64|aarch64|arm64) ;; *)
   echo 'DOCKGE_ARCH_UNSUPPORTED' >&2; exit 27;;
 esac
-for target in /opt/netdeploy /opt/netdeploy/dockge /opt/dockge /opt/dockge-apps /opt/stacks; do
+for target in /opt/vpsdeploy /opt/vpsdeploy/dockge /opt/dockge /opt/dockge-apps /opt/stacks; do
   if test -L "$target"; then
     echo 'DOCKGE_UNSAFE_SYMLINK: existing symlink, refusing to continue' >&2; exit 28;
   fi
@@ -44,15 +44,15 @@ done
 # Old upstream Dockge, an existing fork, or any partial panel installation
 # must be inspected/migrated separately; never steal another Docker stack.
 if test -e /opt/dockge || test -e /opt/dockge-apps ||
-   test -e /opt/netdeploy/dockge; then
+   test -e /opt/vpsdeploy/dockge; then
   echo 'DOCKGE_EXISTS: existing upstream/fork installation or partial directory' >&2; exit 29
 fi
 if docker container inspect dockge >/dev/null 2>&1 ||
    docker container inspect dockge-apps >/dev/null 2>&1 ||
-   docker container inspect netdeploy-dockge >/dev/null 2>&1 ||
-   docker container inspect netdeploy-dockge-apps >/dev/null 2>&1 ||
+   docker container inspect vpsdeploy-dockge >/dev/null 2>&1 ||
+   docker container inspect vpsdeploy-dockge-apps >/dev/null 2>&1 ||
    docker ps -a --format '{{.Image}}' |
-     grep -Eq '(^|/)(louislam/dockge|dockge-apps|netdeploy/dockge-apps)(:|@)'; then
+     grep -Eq '(^|/)(louislam/dockge|dockge-apps|vpsdeploy/dockge-apps)(:|@)'; then
   echo 'DOCKGE_CONTAINER_EXISTS: refusing to replace a pre-existing Dockge image/container' >&2; exit 29
 fi
 if ss -Hltn 'sport = :__HOST_PORT__' | grep -q . ||
@@ -66,12 +66,12 @@ echo 'DOCKGE_PREFLIGHT_OK: source build prerequisites, 5001/TCP free, no existin
 FETCH = r"""set -eu
 test "$(id -u)" = 0
 command -v git >/dev/null
-test ! -e /opt/netdeploy/dockge && test ! -L /opt/netdeploy/dockge || {
+test ! -e /opt/vpsdeploy/dockge && test ! -L /opt/vpsdeploy/dockge || {
   echo 'DOCKGE_SOURCE_CONFLICT: a previous deployment exists; do not overwrite' >&2; exit 31;
 }
-test ! -L /opt/netdeploy || { echo 'DOCKGE_PARENT_SYMLINK' >&2; exit 31; }
-install -d -m 700 /opt/netdeploy
-tmp="$(mktemp -d /opt/netdeploy/.dockge-apps-build.XXXXXXXX)"
+test ! -L /opt/vpsdeploy || { echo 'DOCKGE_PARENT_SYMLINK' >&2; exit 31; }
+install -d -m 700 /opt/vpsdeploy
+tmp="$(mktemp -d /opt/vpsdeploy/.dockge-apps-build.XXXXXXXX)"
 trap 'if test -n "$tmp" && test -d "$tmp"; then rm -rf -- "$tmp"; fi' EXIT
 # Fetch only this exact audited revision. Never install a moving main/latest.
 git -C "$tmp" init -q
@@ -92,12 +92,12 @@ grep -Eq '"version"[[:space:]]*:[[:space:]]*"1[.]5[.]0-apps[.]1"' "$tmp/package.
   echo 'DOCKGE_FORK_VERSION_MISMATCH' >&2; exit 31;
 }
 # Keep the fixed source checkout for rebuilds and future managed updates.
-install -d -m 700 /opt/netdeploy/dockge
-mv -- "$tmp" /opt/netdeploy/dockge/source
+install -d -m 700 /opt/vpsdeploy/dockge
+mv -- "$tmp" /opt/vpsdeploy/dockge/source
 tmp=''
 printf '%s\n' 'VPS Deploy Panel managed Dockge Apps 66aec693a974bd980f632f643586deab16932531' \
-  > /opt/netdeploy/dockge/.netdeploy-managed
-chmod 600 /opt/netdeploy/dockge/.netdeploy-managed
+  > /opt/vpsdeploy/dockge/.vpsdeploy-managed
+chmod 600 /opt/vpsdeploy/dockge/.vpsdeploy-managed
 echo 'DOCKGE_SOURCE_READY: Dockge Apps 1.5.0-apps.1, pinned verified commit'
 """
 
@@ -105,13 +105,13 @@ echo 'DOCKGE_SOURCE_READY: Dockge Apps 1.5.0-apps.1, pinned verified commit'
 CONFIGURE = r"""set -eu
 test "$(id -u)" = 0
 umask 077
-root=/opt/netdeploy/dockge
+root=/opt/vpsdeploy/dockge
 src="$root/source"
-test -f "$root/.netdeploy-managed" && test ! -L "$root/.netdeploy-managed" || {
+test -f "$root/.vpsdeploy-managed" && test ! -L "$root/.vpsdeploy-managed" || {
   echo 'DOCKGE_MANAGED_MARKER_MISSING' >&2; exit 32;
 }
 grep -Fxq 'VPS Deploy Panel managed Dockge Apps 66aec693a974bd980f632f643586deab16932531' \
-  "$root/.netdeploy-managed" || exit 32
+  "$root/.vpsdeploy-managed" || exit 32
 test -d "$src" && test ! -L "$src" || exit 32
 test "$(git -C "$src" rev-parse HEAD)" = '66aec693a974bd980f632f643586deab16932531' || {
   echo 'DOCKGE_SOURCE_CHANGED: aborting source build' >&2; exit 32;
@@ -131,16 +131,16 @@ cat > "$root/compose.yaml" <<'VPSDEPLOY_DOCKGE_APPS_COMPOSE'
 services:
   dockge-apps:
     build:
-      context: /opt/netdeploy/dockge/source
+      context: /opt/vpsdeploy/dockge/source
       dockerfile: docker/Dockerfile.apps
-    image: netdeploy/dockge-apps:66aec693a974
-    container_name: netdeploy-dockge-apps
+    image: vpsdeploy/dockge-apps:66aec693a974
+    container_name: vpsdeploy-dockge-apps
     restart: unless-stopped
     ports:
       - "__HOST_BIND__:__HOST_PORT__:5001/tcp"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
-      - /opt/netdeploy/dockge/data:/app/data
+      - /opt/vpsdeploy/dockge/data:/app/data
       - /opt/stacks:/opt/stacks
     environment:
       DOCKGE_STACKS_DIR: /opt/stacks
@@ -156,7 +156,7 @@ docker compose -f "$root/compose.yaml" config -q
 # Build the actual fork source, NOT the upstream louislam/dockge application.
 # Dockerfile.apps itself uses an upstream base image (mutable), disclosed in docs.
 docker compose -f "$root/compose.yaml" build --pull
-actual="$(docker image inspect -f '{{.Os}}/{{.Architecture}}' netdeploy/dockge-apps:66aec693a974)"
+actual="$(docker image inspect -f '{{.Os}}/{{.Architecture}}' vpsdeploy/dockge-apps:66aec693a974)"
 case "$(uname -m):$actual" in
   x86_64:linux/amd64|aarch64:linux/arm64|arm64:linux/arm64) ;;
   *) echo 'DOCKGE_FORK_IMAGE_ARCH_MISMATCH' >&2; exit 32 ;;
@@ -167,7 +167,7 @@ echo 'DOCKGE_APPS_BUILD_READY: source-built fork, host port __HOST_PORT__, Apps 
 
 # Read only the two allowlisted values; NEVER source a remote config as shell.
 ACCESS_SETTINGS = r"""dockge_access_settings() {
-  record=/opt/netdeploy/dockge/access.conf
+  record=/opt/vpsdeploy/dockge/access.conf
   dockge_host_port=5001
   dockge_bind=127.0.0.1
   if test -e "$record" || test -L "$record"; then
@@ -185,10 +185,10 @@ ACCESS_SETTINGS = r"""dockge_access_settings() {
 """
 BINDING_GUARD = ACCESS_SETTINGS + r"""dockge_local_only() {
   dockge_access_settings || return 1
-  portmap="$(docker container inspect -f '{{json .HostConfig.PortBindings}}' netdeploy-dockge-apps 2>/dev/null)" || return 1
+  portmap="$(docker container inspect -f '{{json .HostConfig.PortBindings}}' vpsdeploy-dockge-apps 2>/dev/null)" || return 1
   test "$portmap" = "{\"5001/tcp\":[{\"HostIp\":\"$dockge_bind\",\"HostPort\":\"$dockge_host_port\"}]}" || return 1
-  docker container inspect -f '{{.Config.Image}}' netdeploy-dockge-apps 2>/dev/null |
-    grep -Fxq 'netdeploy/dockge-apps:66aec693a974' || return 1
+  docker container inspect -f '{{.Config.Image}}' vpsdeploy-dockge-apps 2>/dev/null |
+    grep -Fxq 'vpsdeploy/dockge-apps:66aec693a974' || return 1
 }
 """
 
@@ -196,16 +196,16 @@ BINDING_GUARD = ACCESS_SETTINGS + r"""dockge_local_only() {
 VERIFY = r"""set -eu
 __BINDING_GUARD__
 test "$(id -u)" = 0
-root=/opt/netdeploy/dockge
+root=/opt/vpsdeploy/dockge
 test -f "$root/compose.yaml" && test ! -L "$root/compose.yaml" || exit 33
-test -f "$root/.netdeploy-managed" && test ! -L "$root/.netdeploy-managed" || exit 33
+test -f "$root/.vpsdeploy-managed" && test ! -L "$root/.vpsdeploy-managed" || exit 33
 grep -Fxq 'VPS Deploy Panel managed Dockge Apps 66aec693a974bd980f632f643586deab16932531' \
-  "$root/.netdeploy-managed" || exit 33
+  "$root/.vpsdeploy-managed" || exit 33
 test "$(git -C "$root/source" rev-parse HEAD)" = '66aec693a974bd980f632f643586deab16932531' || exit 33
 docker compose -f "$root/compose.yaml" up -d --no-build
 ready=no
 for attempt in 1 2 3 4 5 6 7 8 9 10 11 12; do
-  if test "$(docker container inspect -f '{{.State.Running}}' netdeploy-dockge-apps 2>/dev/null)" = true &&
+  if test "$(docker container inspect -f '{{.State.Running}}' vpsdeploy-dockge-apps 2>/dev/null)" = true &&
      dockge_local_only; then
     response="$(curl -4 --noproxy '*' --silent --output /dev/null --write-out '%{http_code}' --max-time 7 \
       "http://127.0.0.1:$dockge_host_port/" 2>/dev/null)" || response=000
@@ -232,30 +232,30 @@ STATUS = r"""set -eu
 __BINDING_GUARD__
 # Read-only: report old Dockge as present but UNMANAGED. Never mutate it.
 if test -e /opt/dockge || test -e /opt/dockge-apps ||
-   test -e /opt/netdeploy/dockge ||
+   test -e /opt/vpsdeploy/dockge ||
    docker container inspect dockge >/dev/null 2>&1 ||
    docker container inspect dockge-apps >/dev/null 2>&1 ||
-   docker container inspect netdeploy-dockge >/dev/null 2>&1 ||
-   docker container inspect netdeploy-dockge-apps >/dev/null 2>&1 ||
+   docker container inspect vpsdeploy-dockge >/dev/null 2>&1 ||
+   docker container inspect vpsdeploy-dockge-apps >/dev/null 2>&1 ||
    docker ps -a --format '{{.Image}}' 2>/dev/null |
-     grep -Eq '(^|/)(louislam/dockge|dockge-apps|netdeploy/dockge-apps)(:|@)'; then
+     grep -Eq '(^|/)(louislam/dockge|dockge-apps|vpsdeploy/dockge-apps)(:|@)'; then
   echo 'DOCKGE_INSTALLED=yes'
 else
   echo 'DOCKGE_INSTALLED=no'
   exit 0
 fi
-root=/opt/netdeploy/dockge
-if test -f "$root/.netdeploy-managed" &&
-   test ! -L "$root/.netdeploy-managed" &&
-   grep -Fxq 'VPS Deploy Panel managed Dockge Apps 66aec693a974bd980f632f643586deab16932531' "$root/.netdeploy-managed" &&
+root=/opt/vpsdeploy/dockge
+if test -f "$root/.vpsdeploy-managed" &&
+   test ! -L "$root/.vpsdeploy-managed" &&
+   grep -Fxq 'VPS Deploy Panel managed Dockge Apps 66aec693a974bd980f632f643586deab16932531' "$root/.vpsdeploy-managed" &&
    test -f "$root/compose.yaml" && test ! -L "$root/compose.yaml" &&
    test "$(git -C "$root/source" rev-parse HEAD 2>/dev/null)" = '66aec693a974bd980f632f643586deab16932531'; then
   echo 'DOCKGE_MANAGED=yes'
 else
   echo 'DOCKGE_MANAGED=no'
 fi
-if docker container inspect netdeploy-dockge-apps >/dev/null 2>&1 &&
-   test "$(docker container inspect -f '{{.State.Running}}' netdeploy-dockge-apps)" = true; then
+if docker container inspect vpsdeploy-dockge-apps >/dev/null 2>&1 &&
+   test "$(docker container inspect -f '{{.State.Running}}' vpsdeploy-dockge-apps)" = true; then
   echo 'DOCKGE_RUNNING=yes'
 else
   echo 'DOCKGE_RUNNING=no'
@@ -306,10 +306,10 @@ def steps(host_port: int = PORT, access_mode: str = "local") -> list[dict]:
 RECONFIGURE_CHECK = r"""set -eu
 __BINDING_GUARD__
 test "$(id -u)" = 0
-test -f /opt/netdeploy/dockge/.netdeploy-managed && test -f /opt/netdeploy/dockge/compose.yaml
+test -f /opt/vpsdeploy/dockge/.vpsdeploy-managed && test -f /opt/vpsdeploy/dockge/compose.yaml
 grep -Fxq 'VPS Deploy Panel managed Dockge Apps 66aec693a974bd980f632f643586deab16932531' \
-  /opt/netdeploy/dockge/.netdeploy-managed
-test "$(docker inspect -f '{{.State.Running}}' netdeploy-dockge-apps)" = true
+  /opt/vpsdeploy/dockge/.vpsdeploy-managed
+test "$(docker inspect -f '{{.State.Running}}' vpsdeploy-dockge-apps)" = true
 dockge_local_only || {
   echo 'DOCKGE_ACCESS_BASELINE_CHANGED: current Docker binding is not verified' >&2; exit 50
 }
@@ -324,12 +324,12 @@ echo 'DOCKGE_ACCESS_CHANGE_READY: existing managed Dockge Apps verified'
 
 RECONFIGURE_APPLY = r"""set -eu
 __BINDING_GUARD__
-root=/opt/netdeploy/dockge
+root=/opt/vpsdeploy/dockge
 test "$(id -u)" = 0
 grep -Fxq 'VPS Deploy Panel managed Dockge Apps 66aec693a974bd980f632f643586deab16932531' \
-  "$root/.netdeploy-managed" || exit 50
+  "$root/.vpsdeploy-managed" || exit 50
 dockge_local_only || exit 50
-test "$(docker inspect -f '{{.State.Running}}' netdeploy-dockge-apps)" = true || exit 50
+test "$(docker inspect -f '{{.State.Running}}' vpsdeploy-dockge-apps)" = true || exit 50
 if test "$dockge_host_port" != '__NEW_PORT__'; then
   if ss -Hltn 'sport = :__NEW_PORT__' | grep -q . ||
      test -n "$(docker ps -q --filter 'publish=__NEW_PORT__/tcp')"; then
@@ -382,7 +382,7 @@ docker compose -f "$root/compose.yaml" config -q
 docker compose -f "$root/compose.yaml" up -d --no-build
 ready=no
 for count in 1 2 3 4 5 6 7 8 9 10; do
-  if dockge_local_only && test "$(docker inspect -f '{{.State.Running}}' netdeploy-dockge-apps)" = true; then
+  if dockge_local_only && test "$(docker inspect -f '{{.State.Running}}' vpsdeploy-dockge-apps)" = true; then
     code="$(curl -4 --noproxy '*' --silent --output /dev/null --write-out '%{http_code}' \
       --max-time 7 'http://127.0.0.1:__NEW_PORT__/' 2>/dev/null)" || code=000
     case "$code" in 200|301|302|303|307|308|401|403) ready=yes; break;; esac

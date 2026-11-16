@@ -60,7 +60,7 @@ __PUBLIC_SOCKET_CHECK__
 addresses="$(ss -Hltn "sport = :$port" | awk '{print $4}')"
 if test "$addresses" = "127.0.0.1:$port"; then
     echo 'XUI_LISTENER=local'
-elif netdeploy_public_socket "$port"; then
+elif vpsdeploy_public_socket "$port"; then
     # A public listener is safe to open only when the existing TLS identity
     # validates against the actual hostname with the OS trust store.
     if test -n '__IDENTITY__'; then
@@ -148,7 +148,7 @@ test "$(stat -c %a /etc/x-ui/install-result.env)" = 600
 test "$(stat -c %u /etc/x-ui/install-result.env)" = 0
 test "$(sed -n 's/^XUI_PANEL_PORT=//p' /etc/x-ui/install-result.env)" = "__PORT__"
 __PUBLIC_SOCKET_CHECK__
-netdeploy_public_socket __PORT__ || {
+vpsdeploy_public_socket __PORT__ || {
     echo 'HTTPS access denied: no public wildcard listener on configured TCP port' >&2; exit 44;
 }
 web_path="$(sed -n 's/^XUI_WEB_BASE_PATH=//p' /etc/x-ui/install-result.env)"
@@ -188,7 +188,7 @@ test "$(stat -c %u /etc/x-ui/install-result.env)" = 0
 test "$(stat -c %a /etc/x-ui/install-result.env)" = 600
 grep -Fxq 'XUI_PANEL_PORT=__PORT__' /etc/x-ui/install-result.env
 __PUBLIC_SOCKET_CHECK__
-netdeploy_public_socket __PORT__ || {
+vpsdeploy_public_socket __PORT__ || {
   echo 'XUI_HTTP_SOCKET_NOT_PUBLIC: no wildcard TCP listener' >&2; exit 60
 }
 path="$(sed -n 's/^XUI_WEB_BASE_PATH=//p' /etc/x-ui/install-result.env)"

@@ -45,9 +45,9 @@ def test_pristine_vps_combines_full_bootstrap_and_dockge_with_one_approval():
     assert "DOCKGE_APPS_READY" in combined
     assert "curl --proto '=https'" in combined
     assert "https://get.docker.com" in DOWNLOAD_OFFICIAL
-    assert "netdeploy_docker_pristine" in RUN_OFFICIAL
-    assert "netdeploy_docker_pristine" in combined
-    assert "ND_DOCKER_APT_REMOVAL_BLOCKED" in combined
+    assert "vpsdeploy_docker_pristine" in RUN_OFFICIAL
+    assert "vpsdeploy_docker_pristine" in combined
+    assert "VPS_DOCKER_APT_REMOVAL_BLOCKED" in combined
     for forbidden in ("curl -fsSL https://get.docker.com | bash",
                       "curl | bash", "ufw disable", "apt-get purge",
                       "docker system prune", "docker compose down",
@@ -77,8 +77,8 @@ def test_compose_only_installs_cli_plugin_not_a_new_engine():
     assert "docker-buildx-plugin" in setup
     assert "docker-ce docker-ce-cli" not in setup
     assert "docker info" in setup
-    assert "ND_DOCKER_EXISTING_ENGINE_UNSUPPORTED" in setup
-    assert "ND_DOCKER_ENGINE_CHANGE_BLOCKED" in setup
+    assert "VPS_DOCKER_EXISTING_ENGINE_UNSUPPORTED" in setup
+    assert "VPS_DOCKER_ENGINE_CHANGE_BLOCKED" in setup
     assert "apt-get -s" in setup
     assert "download.docker.com/linux/$ID/gpg" not in setup
 
@@ -126,7 +126,7 @@ def test_prereq_metadata_does_not_accept_user_shell_options():
 def test_read_only_preflight_reports_docker_install_state():
     class Fake:
         def run(self, host, script, timeout):
-            assert "netdeploy_docker_pristine" in script
+            assert "vpsdeploy_docker_pristine" in script
             assert "DOCKER_SETUP=clean" in script
             return ("OS_ID=debian\nOS_VERSION=13\nARCH=x86_64\nUID=0\n"
                     "DOCKER=no\nCOMPOSE=no\nDOCKER_SETUP=clean\n"

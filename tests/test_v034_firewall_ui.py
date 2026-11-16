@@ -88,7 +88,7 @@ def test_tls_workflow_opens_only_required_ufw_ports():
 
 
 def test_firewall_rest_api_one_click_only_for_authenticated_validated_port(monkeypatch,tmp_path):
-    stored=Store(str(tmp_path/"netdeploy.db"))
+    stored=Store(str(tmp_path/"vpsdeploy.db"))
     class FakeExecutor:
         def credential_ready(self,host):return True
         def preflight(self,host):return dict(FACTS)
@@ -123,7 +123,7 @@ def test_firewall_rest_api_one_click_only_for_authenticated_validated_port(monke
 
 
 def test_one_click_approval_keeps_strict_server_preflight_and_legacy_confirmation(monkeypatch,tmp_path):
-    stored=Store(str(tmp_path/"netdeploy.db"))
+    stored=Store(str(tmp_path/"vpsdeploy.db"))
     called=[]
     class FakeExecutor:
         def credential_ready(self,host):return True
@@ -210,4 +210,4 @@ def test_two_column_server_console_and_simple_plan_review():
     assert "请完整输入以下确认语句" not in js
     assert "plan-technical" in js
     assert "prefers-reduced-motion" in css
-    assert 'ALPHA v0.3.31' in html
+    assert 'ALPHA v1.0.0' in html

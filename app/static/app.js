@@ -1,8 +1,8 @@
-/* VPS Deploy Panel v0.3.31 – no external JavaScript, no generated remote shell. */
+/* VPS Deploy Panel v1.0.0 – no external JavaScript, no generated remote shell. */
 const el = (s) => document.querySelector(s);
-const CLIENT_VERSION = '0.3.31';
+const CLIENT_VERSION = '1.0.0';
 const escapeHtml = (v) => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const state = {token:sessionStorage.getItem('nd_token')||'', hosts:[], jobs:[], catalog:{}, capabilities:{secure_password_storage:false}, section:'dashboard', activeJob:null, hostPanel:null, pendingFingerprint:null, loading:false, lastSnapshot:null,versionMismatchShown:false,setupFlowId:null,setupFirewallStatus:'unknown',setupFirewallBusy:false,setupFailedFirewallRules:[]};
+const state = {token:sessionStorage.getItem('vpsdeploy_token')||'', hosts:[], jobs:[], catalog:{}, capabilities:{secure_password_storage:false}, section:'dashboard', activeJob:null, hostPanel:null, pendingFingerprint:null, loading:false, lastSnapshot:null,versionMismatchShown:false,setupFlowId:null,setupFirewallStatus:'unknown',setupFirewallBusy:false,setupFailedFirewallRules:[]};
 
 async function api(path, opts={}) {
   const resp = await fetch('/api'+path,{...opts,headers:{'X-Admin-Token':state.token,...(opts.body?{'Content-Type':'application/json'}:{}),...(opts.headers||{})},cache:'no-store'});
@@ -94,7 +94,7 @@ const symbol={"3x-ui":"▣","3x-ui-https":"🔒","sing-box":"⬡","hysteria2":"�
 // Single source of truth: public projects, excluding internal upgrade recipes.
 function catalogProjects(catalog){return Object.entries(catalog||{}).filter(([,project])=>project&&!project.internal);}
 const projectGrid=el('#project-grid');
-const PROJECT_ORDER_KEY='nd_project_order';
+const PROJECT_ORDER_KEY='vpsdeploy_project_order';
 const FEATURED_PROJECT_LIMIT=5;
 let projectOrder=readProjectOrder();
 let projectDrag=null;
@@ -218,7 +218,7 @@ function render(){
  const loneInstalledDockge=hosts.length===1&&hosts[0].facts?.DOCKGE_PRESENT==='yes';
  el('#stats').innerHTML = [
   ['已添加服务器',hosts.length,'▤','已通过 SSH 扫描 '+hosts.filter(h=>!!h.facts).length+' 台'],
-  ['项目模板',projects.length,'⬡','固定、可审核的部署计划'],
+  ['部署项目',projects.length,'⬡','固定版本的部署步骤'],
   ['完成任务',jobs.filter(j=>j.status==='completed').length,'✓','安装完成仍需业务配置'],
   ['待处理任务',jobs.filter(j=>['failed','interrupted','partial'].includes(j.status)||(j.status==='planned'&&j.plan?.executable)).length,'⌁','需确认或排障的任务']
  ].map(([label,val,ico,desc])=>`<div class="stat"><div class="top"><span>${label}</span><span class="icon">${ico}</span></div><strong>${val}</strong><small>${desc}</small></div>`).join('');
@@ -246,14 +246,14 @@ function render(){
     </article>`;
  }).join('')+`<button class="host-add-card" type="button" data-action="add-host" aria-label="添加 VPS 服务器" title="添加 VPS 服务器">＋</button>`:
  `<div class="empty"><span class="empty-icon">▤</span><span>还没有 VPS。添加后点击卡片，即可在同一个控制台管理连接、部署与端口。</span><button class="btn primary" data-action="add-host">＋ 添加第一台 VPS</button></div>`;
- el('#job-list').innerHTML=jobs.length?jobs.map(j=>{const p=catalog[j.project]||{};const host=hosts.find(h=>h.id===j.host_id);return `<div class="job-item"><div class="job-icon">${symbol[j.project]||'⋄'}</div><div class="job-main"><b>${escapeHtml(p.name||j.project)} · ${escapeHtml(host?.name||j.plan.hostname)}</b><small>${escapeHtml(j.created_at.replace('T',' ').slice(0,19))} UTC · 任务 #${escapeHtml(j.id)}</small></div>${isExistingXuiPlan(j)?'<span class="chip success">已安装 · 无需审批</span>':chip(j)}<button class="btn ${j.status==='planned'?'primary':'subtle'}" data-action="${isExistingXuiPlan(j)?'installed-xui':historicalHttpsFailure(j)?'regenerate-plan':planNeedsUpdate(j)&&j.plan?.executable?'regenerate-plan':'job'}" data-id="${escapeHtml(isExistingXuiPlan(j)?j.host_id:j.id)}">${escapeHtml(jobNextAction(j))} →</button>${["queued","running"].includes(j.status)?"":`<button class="btn subtle" data-action="delete-job" data-id="${escapeHtml(j.id)}">删除</button>`}</div>`;}).join(''):`<div class="empty"><span class="empty-icon">≡</span><span>还没有部署任务。选择项目即可生成审批计划。</span></div>`;
+ el('#job-list').innerHTML=jobs.length?jobs.map(j=>{const p=catalog[j.project]||{};const host=hosts.find(h=>h.id===j.host_id);return `<div class="job-item"><div class="job-icon">${symbol[j.project]||'⋄'}</div><div class="job-main"><b>${escapeHtml(p.name||j.project)} · ${escapeHtml(host?.name||j.plan.hostname)}</b><small>${escapeHtml(j.created_at.replace('T',' ').slice(0,19))} UTC · 任务 #${escapeHtml(j.id)}</small></div>${isExistingXuiPlan(j)?'<span class="chip success">已安装 · 无需审批</span>':chip(j)}<button class="btn ${j.status==='planned'?'primary':'subtle'}" data-action="${isExistingXuiPlan(j)?'installed-xui':historicalHttpsFailure(j)?'regenerate-plan':planNeedsUpdate(j)&&j.plan?.executable?'regenerate-plan':'job'}" data-id="${escapeHtml(isExistingXuiPlan(j)?j.host_id:j.id)}">${escapeHtml(jobNextAction(j))} →</button>${["queued","running"].includes(j.status)?"":`<button class="btn subtle" data-action="delete-job" data-id="${escapeHtml(j.id)}">删除</button>`}</div>`;}).join(''):`<div class="empty"><span class="empty-icon">≡</span><span>还没有任务。选择项目即可生成审批计划。</span></div>`;
  renderSection();
 }
 function renderSection(){
  const visibleProjects=catalogProjects(state.catalog).length;
  const navBadge=el('#project-nav-count');
  if(navBadge){navBadge.textContent=String(visibleProjects);navBadge.setAttribute('aria-label',`共 ${visibleProjects} 个项目`);}
- const navName={dashboard:['总览面板','运行概览','集中管理服务器与自动化部署任务'],projects:['项目中心','项目中心',`共 ${visibleProjects} 个项目 · 拖动卡片右上角排序，首页显示排序后的前 ${FEATURED_PROJECT_LIMIT} 个`],hosts:['服务器管理','服务器管理','通过 SSH 连接可信的 Linux VPS'],jobs:['部署任务','部署任务','所有任务状态、审批和执行日志']};
+ const navName={dashboard:['总览','运行状态','服务器状态、任务与最近改动'],projects:['项目库','项目库',`共 ${visibleProjects} 个项目 · 拖动卡片右上角排序，首页显示排序后的前 ${FEATURED_PROJECT_LIMIT} 个`],hosts:['服务器','服务器','通过 SSH 连接可信的 Linux VPS'],jobs:['任务','任务','所有任务状态、审批和执行日志']};
  const [title,heading,sub]=navName[state.section];el('#crumb-current').textContent=title;el('#section-title').textContent=heading;el('#section-subtitle').textContent=sub;
  document.querySelectorAll('[data-nav]').forEach(b=>{
    const navItem=b.classList.contains('nav-item');
@@ -343,15 +343,15 @@ function openHostConsole(id,tab='overview'){
      const pending=active.status==='planned',running=['queued','running'].includes(active.status);
      const header=pending?(active.needs_refresh?'此部署方案来自旧版代码，需要刷新':isPlanExpired(active)?'部署计划已过期，刷新后继续':'部署方案已准备好，等待你的批准'):running?'部署正在执行':'上次部署需要处理';
      const detail=pending?(active.needs_refresh?'GitHub 已更新经过审核的固定脚本。请生成最新方案，避免继续执行旧版 HTTPS 命令；更新方案不会直接修改 VPS。':isPlanExpired(active)?'计划创建超过 10 分钟，出于安全考虑必须重新检测。点击即可生成最新方案，不会直接安装。':'目前还未开始在 VPS 上安装。点击下面按钮，核对目标和风险后即可一次确认启动。'):
-        running?'可直接查看安装进度，无需重复创建部署任务。':'查看具体失败原因或继续完成后续配置，无需重复安装已部署的软件。';
+        running?'可直接查看安装进度，无需重复创建任务。':'查看具体失败原因或继续完成后续配置，无需重复安装已部署的软件。';
      next=`<section class="server-next-action ${pending?'pending':''}" aria-label="当前待办任务">
-       <span class="server-next-kicker">${pending?'下一步 · 待审批':running?'正在执行 · 任务进度':'需要处理 · 部署任务'}</span>
+       <span class="server-next-kicker">${pending?'下一步 · 待审批':running?'正在执行 · 任务进度':'需要处理 · 任务'}</span>
        <h3>${header}</h3><p>${detail}</p>
        <button type="button" class="btn primary" data-action="${planNeedsUpdate(active)?'regenerate-plan':'job'}" data-id="${escapeHtml(active.id)}">${jobNextAction(active)} →</button>
      </section>`;
    }else if(!ready){
      next=`<section class="server-next-action"><span class="server-next-kicker">下一步 · 连接服务器</span>
-       <h3>检查 SSH 连接与服务器环境</h3><p>首次使用先确认主机指纹，随后检测系统。之后创建部署任务时会自动复核，无须每次手动检测。</p>
+       <h3>检查 SSH 连接与服务器环境</h3><p>首次使用先确认主机指纹，随后检测系统。之后创建任务时会自动复核，无须每次手动检测。</p>
        <button type="button" class="btn primary" data-action="host-tab" data-id="${id}" data-tab="security">检查 SSH 身份 →</button>
      </section>`;
    }else{
@@ -366,8 +366,8 @@ function openHostConsole(id,tab='overview'){
       <div><span>运行环境</span><strong>${connected?escapeHtml(host.facts.OS_ID)+' / '+escapeHtml(host.facts.ARCH):'尚未检测'}</strong></div>
       <div><span>连接方式</span><strong>${host.auth_mode==='password'?'SSH 密码'+(host.password_remembered?' · 已安全保存':''):'SSH 私钥'}</strong></div>
     </div>
-    <div class="server-panel-section"><div class="server-subheading"><h3>最近部署任务</h3><p>点击任务就能继续审批、查看进度或处理失败，无需重新安装。</p></div>
-      ${related.length?related.map(hostTaskLink).join(''):'<p class="helptext">还没有部署任务。点击上面的“选择软件，一键部署”开始。</p>'}
+    <div class="server-panel-section"><div class="server-subheading"><h3>最近任务</h3><p>点击任务就能继续审批、查看进度或处理失败，无需重新安装。</p></div>
+      ${related.length?related.map(hostTaskLink).join(''):'<p class="helptext">还没有任务。点击上面的“选择软件，一键部署”开始。</p>'}
     </div>
     <details class="server-advanced-actions"><summary>其他管理操作（连接检测、端口、安全设置）</summary>
       <div class="server-action-grid">
@@ -417,7 +417,7 @@ function openHostConsole(id,tab='overview'){
  const header=`<div class="server-console"><div class="server-console-head"><div><span class="server-eyebrow">VPS 工作台</span>
    <h3>${escapeHtml(host.name)}</h3><p>${escapeHtml(host.username)}@${escapeHtml(host.hostname)}:${host.port}</p></div>
    <span class="chip ${host.credential_ready?(connected?'success':'warn'):'error'}">${host.credential_ready?(connected?'曾通过环境检测':'待检测'):'需补充登录凭据'}</span></div>
-   <nav class="server-tabs" aria-label="服务器管理分类">${tabs.map(([name,label])=>`<button type="button" class="server-tab ${tab===name?'active':''}" data-action="host-tab" data-id="${id}" data-tab="${name}" aria-current="${tab===name?'page':'false'}">${label}</button>`).join('')}</nav>
+   <nav class="server-tabs" aria-label="服务器分类">${tabs.map(([name,label])=>`<button type="button" class="server-tab ${tab===name?'active':''}" data-action="host-tab" data-id="${id}" data-tab="${name}" aria-current="${tab===name?'page':'false'}">${label}</button>`).join('')}</nav>
    <div class="server-tab-content">${content}</div></div>`;
  dialog(modalHead('VPS 服务器控制台',true)+header);
  if(tab==='network'){
@@ -1135,7 +1135,7 @@ function editHost(id){
 }
 function deleteHost(id){
  const host=state.hosts.find(h=>h.id===id);if(!host)return;
- dialog(modalHead('删除 VPS 记录')+`<div class="modal-tip warning"><b>只删除本面板的本地记录，不卸载 VPS 软件。</b> SSH 指纹若被其他服务器条目共用，会继续保留。关联部署任务、日志和面板快捷入口将在明确确认后删除，无法从面板恢复。</div>
+ dialog(modalHead('删除 VPS 记录')+`<div class="modal-tip warning"><b>只删除本面板的本地记录，不卸载 VPS 软件。</b> SSH 指纹若被其他服务器条目共用，会继续保留。关联任务、日志和面板快捷入口将在明确确认后删除，无法从面板恢复。</div>
  <p class="helptext">${escapeHtml(host.name)} · ${escapeHtml(host.hostname)}:${host.port} · ${host.job_count||0} 条部署历史</p>
  <form id="delete-host-form"><p class="helptext">点击下方删除按钮即可确认，不需要手动输入英文确认语句。</p>
  ${host.job_count?`<label class="check"><input type="checkbox" name="delete_local_history" required/> 我确认同步删除该 VPS 的 ${host.job_count} 条本地任务历史及日志（不会删除远端软件）</label>`:''}
@@ -1350,7 +1350,7 @@ function showJob(id){
  const postInstallSshIssue=job.project==='3x-ui'&&!stale&&['failed','partial'].includes(job.status)&&
    String(job.logs||'').includes('通过：Official installer finished; sensitive credentials kept on VPS only')&&
    /SSH_(HANDSHAKE_FAILED|CONNECT_TIMEOUT|CONNECTION_REFUSED|NETWORK_ERROR|AUTH_FAILED)/.test(String(job.error||job.logs||''));
- let html=modalHead(`${p.name} · 部署任务`)+`<div class="toolbar">${chip(job)}<span class="chip">${escapeHtml(host?.name||p.hostname)}</span><span class="chip">${escapeHtml(p.options?.panel_port||'')}${p.options?.panel_port?' / TCP':''}</span></div>`;
+ let html=modalHead(`${p.name} · 任务`)+`<div class="toolbar">${chip(job)}<span class="chip">${escapeHtml(host?.name||p.hostname)}</span><span class="chip">${escapeHtml(p.options?.panel_port||'')}${p.options?.panel_port?' / TCP':''}</span></div>`;
  if(stale)html+='<div class="modal-tip warning">此任务属于服务器重装前的系统。旧登录信息和审批计划已失效，必须重新检测并创建新的部署方案。</div>';
  if(p.issues.length&&!isExistingXuiPlan(job)&&!existingHiddify)html+=`<div class="modal-tip warning">${p.issues.map(escapeHtml).join('；')}</div>`;
  if(existingHiddify&&inspectHiddify)html+='<div class="modal-tip">检测到 Hiddify 安装文件。请检查服务的当前运行状态。</div>';
@@ -1475,7 +1475,7 @@ async function deleteJobRecord(id){
 }
 async function regeneratePlan(id){
  const oldJob=state.jobs.find(j=>j.id===id);
- if(!oldJob){toast('原部署任务不存在，请刷新',true);return;}
+ if(!oldJob){toast('原任务不存在，请刷新',true);return;}
  const host=state.hosts.find(h=>h.id===oldJob.host_id);
  if(!host){toast('原服务器不存在，请刷新',true);return;}
  const button=el('[data-action="regenerate-plan"]');
@@ -1561,7 +1561,7 @@ async function toggleCodexChat(opener){
  await refreshCodexSettings();
 }
 function logout(){
- sessionStorage.removeItem('nd_token');
+ sessionStorage.removeItem('vpsdeploy_token');
  state.token='';
  closeCodexChat(false);
  el('#codex-launcher').classList.add('hidden');
@@ -1627,7 +1627,7 @@ async function showCodexSettings(){
 }
 
 function codexPanelAction(action){
- const sections={hosts:'服务器管理',projects:'项目中心',jobs:'部署任务'};
+ const sections={hosts:'服务器',projects:'项目库',jobs:'任务'};
  if(action?.type==='section'&&Object.hasOwn(sections,action.section)){
    return {label:'打开'+sections[action.section],open:()=>go(action.section)};
  }
@@ -1781,14 +1781,14 @@ async function tryLocalLogin(){
    const result=await response.json();
    if(typeof result.token!=='string'||result.token.length<24)return false;
    state.token=result.token;
-   sessionStorage.setItem('nd_token',result.token);
+   sessionStorage.setItem('vpsdeploy_token',result.token);
    return true;
  }catch{return false;}
 }
 async function start(){
  if(state.token){
    try{await api('/auth');await showAuthenticatedPanel();return;}
-   catch{state.token='';sessionStorage.removeItem('nd_token');}
+   catch{state.token='';sessionStorage.removeItem('vpsdeploy_token');}
  }
  if(await tryLocalLogin()){
    await showAuthenticatedPanel();return;
@@ -1800,7 +1800,7 @@ async function showAuthenticatedPanel(){
  el('#codex-launcher').classList.remove('hidden');
  await loadAll(true);
 }
-el('#login-form').addEventListener('submit',async e=>{e.preventDefault();state.token=el('#admin-token').value;try{await api('/auth');sessionStorage.setItem('nd_token',state.token);el('#admin-token').value='';await showAuthenticatedPanel();}catch(err){toast(err.message,true);}});
+el('#login-form').addEventListener('submit',async e=>{e.preventDefault();state.token=el('#admin-token').value;try{await api('/auth');sessionStorage.setItem('vpsdeploy_token',state.token);el('#admin-token').value='';await showAuthenticatedPanel();}catch(err){toast(err.message,true);}});
 document.addEventListener('click',async e=>{
  const t=e.target.closest('[data-action],[data-nav]');if(!t)return;
  if(t.dataset.nav){go(t.dataset.nav);return;}

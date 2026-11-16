@@ -7,7 +7,7 @@
   const sidebar = $('#sidebar');
   const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
   let remembered = null;
-  try { remembered = localStorage.getItem('netdeploy-docs-theme'); } catch (_) { /* optional */ }
+  try { remembered = localStorage.getItem('vpsdeploy-docs-theme'); } catch (_) { /* optional */ }
   function setTheme(mode) {
     document.documentElement.dataset.theme = mode;
     themeButton.setAttribute('aria-pressed', String(mode === 'dark'));
@@ -17,7 +17,7 @@
   themeButton.addEventListener('click', function () {
     const next = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
     setTheme(next);
-    try { localStorage.setItem('netdeploy-docs-theme', next); } catch (_) { /* optional */ }
+    try { localStorage.setItem('vpsdeploy-docs-theme', next); } catch (_) { /* optional */ }
   });
   function closeMenu() {
     sidebar.classList.remove('is-open');

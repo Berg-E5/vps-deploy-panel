@@ -16,7 +16,7 @@
 6. 默认继续执行 **HTTPS 四步**：校验 VPS 公网 IPv4 与证书域名 DNS A、UFW 仅按需放行 ACME 80/TCP、复用受审核 Certbot IP/域名证书签发与续期模块、原生写入 S-UI `webCertFile`/`webKeyFile`/`webDomain` 并将 `webListen` 改为公网监听。
    **NPM 模式**：安装页面可以改选由 Nginx Proxy Manager 统一终结 TLS。此时只执行 S-UI 本机 5 步，不进入任何证书或 TCP 80 检查；2095/2096 均保持 127.0.0.1，仅让 NPM 的 host 网络模式容器连接 127.0.0.1:2095 作为 HTTP 上游。NPM 单独使用 80/443 签发 SSL，不将原始 2095 公网开放。
 
-   IP 证书由独立 Certbot 5.8.0 venv 与 `netdeploy-certbot-renew.timer` 续期，单独保存在 `/etc/netdeploy/letsencrypt`。域名证书使用原系统 Certbot；保留 Debian 13 旧版 APT Certbot 和其他站点的续期文件，失败后可以重新审批四步 HTTPS 续接，不重复安装 S-UI。
+   IP 证书由独立 Certbot 5.8.0 venv 与 `vpsdeploy-certbot-renew.timer` 续期，单独保存在 `/etc/vpsdeploy/letsencrypt`。域名证书使用原系统 Certbot；保留 Debian 13 旧版 APT Certbot 和其他站点的续期文件，失败后可以重新审批四步 HTTPS 续接，不重复安装 S-UI。
 
 7. 用真实 IPv4 TLS + 证书身份验证 2095 端口，订阅 2096 始终本机。只有验收通过才放行 UFW 2095 并记录安全 HTTPS 地址；任何后续失败优先停止服务、撤销公网配置并恢复本机，不得提供公网 HTTP 回退。
 
