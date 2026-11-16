@@ -1,52 +1,72 @@
 <h2 id="panel-not-open">Windows 本地页面打不开</h2>
-<ol><li>通过 QuickStart 启动的面板在后台运行。双击 QuickStart 可重新打开网页。</li><li>打开 <code>http://127.0.0.1:8787/api/health</code> 检查后台版本。</li><li>若提示 8787 无法绑定，请检查实际使用该端口的程序。通过 QuickStart 启动失败时可查看 <code>.build/quickstart.stdout.log</code> 和 <code>.build/quickstart.stderr.log</code>。</li></ol>
+<ul>
+<li>通过 QuickStart 启动的面板在后台运行。双击 QuickStart 可重新打开网页。</li>
+<li>打开 <code>http://127.0.0.1:8787/api/health</code> 检查后台版本。</li>
+<li>若提示 8787 无法绑定，请检查实际使用该端口的程序。通过 QuickStart 启动失败时可查看 <code>.build/quickstart.stdout.log</code> 和 <code>.build/quickstart.stderr.log</code>。</li>
+</ul>
+
 <h2 id="ssh-refused">SSH 连接被拒绝 / 超时</h2>
 <p>从 Windows PowerShell 检查：</p>
 <pre><code>Test-NetConnection YOUR_VPS_IP -Port 22</code></pre>
-<p>连接失败说明可能是云防火墙、VPS UFW、sshd 没监听、实例停机或地址/端口错误。连接成功但认证失败，才检查用户名、密码或 SSH 私钥。Google Cloud 用户先从云控制台的浏览器 SSH 入口排查。</p>
-<h2 id="ssh-postinstall">3X-UI 安装第 5 步 SSH 握手失败（SSH_HANDSHAKE_FAILED）</h2>
-<p>如果日志显示第 4/5 步 <code>Official installer finished</code>，但第 5/5 步提示 <code>SSH_HANDSHAKE_FAILED</code>，说明安装器已返回成功，<strong>只是最终 SSH 连接和验收未完成</strong>。这不能证明 3X-UI 没安装，<strong>请勿直接重复安装或清空原配置</strong>。</p>
-<ol>
-<li>更新本控制台并重启服务，刷新网页。新版会在执行远端命令<strong>之前</strong>最多尝试 3 次受信任的 SSH 连接；不会重复执行安装器、绕过主机指纹验证或自动重置 SSH。</li>
-<li>打开原来的失败/待验收任务，点击 <strong>只读检查现有 3X-UI（不重装）</strong>。它仅通过已经核对指纹的 SSH 检查服务、实际监听和本机 HTTP 响应；如果面板在运行，可继续查看原来的管理地址和凭据。</li>
-<li>如果 SSH 仍无法握手，请从云厂商浏览器控制台/串口检查 VPS 的 SSH 服务和负载。在 Ubuntu/Debian 的控制台可执行下面的只读检查命令：</li>
-</ol>
-<pre><code>sudo systemctl status ssh --no-pager
-sudo systemctl status x-ui --no-pager
-sudo ss -lntp | grep -E ':(22|8443)[[:space:]]'
-sudo journalctl -u ssh -n 40 --no-pager</code></pre>
-<p>上面的 <code>8443</code> 是示例面板端口，请替换为你安装时填写的实际端口。SSH 握手失败可能与临时负载、连接限制、sshd 状态或算法协商有关，单凭这条错误无法确定根因。<code>Test-NetConnection IP -Port 22</code> 成功只说明 TCP 可达，<strong>不代表 SSH 协议握手正常</strong>。</p>
-<p>如果提示 <code>SSH_HOST_KEY_CHANGED</code> 或 <code>SSH_ALGORITHM_MISMATCH</code>，本控制台不会自动重试或跳过安全校验；请通过云服务商独立核对指纹或处理算法兼容性。面板自身即使已运行，云安全组仍须另外确认管理端口是否放行并限制来源 IP；公网明文 HTTP 有凭据泄露风险，建议用 NPM HTTPS。</p>
+<p>连接失败说明可能是云防火墙、VPS UFW、sshd 没监听、实例停机或地址/端口错误。连接成功但认证失败，才检查用户名、密码或 SSH 私钥。如果云平台提供浏览器 SSH 入口，先从那里排查。</p>
 
 <h2 id="fingerprint">SSH 指纹变化、信任失败</h2>
-<p>VPS 重装、系统更新了主机密钥、IP 发生回收都可能导致指纹变化。请从服务商独立控制台核对后使用本控制台的 <strong>SSH 安全 → 更新指纹</strong>；不要使用 <code>StrictHostKeyChecking=no</code> 绕过身份校验。</p>
+<p>VPS 重装、系统更新了主机密钥、IP 发生回收都可能导致指纹变化。请从服务商独立控制台核对后使用本控制台的 SSH 安全 → 更新指纹；<strong>不要使用 <code>StrictHostKeyChecking=no</code> 绕过身份校验</strong>。</p>
+
 <h2 id="wrong-credentials">root 密码正确但仍无法登录</h2>
-<p>需要区分 root 本地密码、SSH 是否启用密码认证、root SSH 是否被禁用，以及 Google Cloud 的 OS Login/IAM 或 PAM 限制。见 <a href="google-cloud.html#os-login">谷歌云专题</a>。修改 root 密码本身不等于开放 root SSH。</p>
+<p>需要区分 root 本地密码、SSH 是否启用密码认证、root SSH 是否被禁用，以及云平台自身的 OS Login / IAM 或 PAM 限制。<strong>修改 root 密码本身不等于开放 root SSH。</strong></p>
+
 <h2 id="ufw">UFW 放行了，公网仍打不开</h2>
-<p>确认 VPS 真正监听对应端口、已通过有效 HTTPS / TLS 配置、云安全组的入站规则确实作用于目标实例，以及源 IP 和协议正确。Google Cloud 和 AWS 的 VPC 规则属于另一层网络控制。</p>
-<h2 id="https">3X-UI HTTPS 签证书失败</h2>
-<p>检查域名是否解析到该 VPS 公网 IP、TCP 80 是否可从公网访问、Certbot 续期服务是否正常，以及 3X-UI 实际监听与证书配置。如果软件已装好但 HTTPS 阶段失败，应使用 <strong>继续完成 HTTPS</strong> 创建修复计划，不必覆盖现有 3X-UI。</p>
-<h2 id="certbot-debian13">Debian 13 Certbot 4.0：IP 证书不支持</h2>
-<p>如果看到 <code>Installed Certbot does not support IP certificates (requires recent Certbot 5.3+)</code>，说明旧流程错误地使用了 Debian 13 软件源中的 Certbot 4.0。<strong>3X-UI 安装与 IP 证书是两个独立阶段</strong>：日志第 5/9 步已经通过，代表面板安装成功，只是 HTTPS 尚未完成。<code>UFW_UNAVAILABLE</code> 仅提示本机没装 UFW，不是该报错原因。</p>
-<ol><li>关闭旧面板窗口，更新并启动 v{{version}} 或更新版本，浏览器强制刷新。</li><li>选择原 VPS 的 3X-UI 卡片 → <strong>查看已安装面板</strong> → <strong>继续完成 HTTPS</strong>；如果已有失败任务，请先重新生成当前版本的四步证书方案并审核。</li><li>系统自动从官方 PyPI 安装独立 Certbot 5.8.0，不会更改服务器原有的 <code>/usr/bin/certbot</code> 与系统续期计时器；IP 证书另用 <code>/etc/vpsdeploy/letsencrypt</code> 和 <code>vpsdeploy-certbot-renew.timer</code>。</li><li>确认 VPS 可通过 HTTPS 访问 PyPI、云厂商允许公网 TCP 80 进入 VPS，然后验收 HTTPS 面板访问及本机定时器运行。</li></ol>
-<p>如需在 VPS 控制台验证新环境是否准备完成，可运行以下只读命令；<strong>不要删除系统 Certbot、不要重装已经成功安装的面板</strong>。</p>
-<pre><code>sudo /opt/vpsdeploy-certbot/venv/bin/certbot --version
-sudo systemctl status vpsdeploy-certbot-renew.timer --no-pager
-sudo systemctl status x-ui --no-pager</code></pre>
-<p>若仍失败，记录新步骤的错误编号（例如 <code>VPS_CERTBOT_PYPI_FAILED</code> 或 <code>LE_HTTP01_UNREACHABLE</code>）并检查出站 HTTPS、云厂商入站规则和 Let’s Encrypt 限流。</p>
-<h2 id="sui">S-UI 安装后从公网打不开</h2>
-<p>新安装会尝试签发公网 IP/域名证书，只有证书、续期及 HTTPS 验证通过才会让管理 2095/TCP 监听公网。先在<strong>查看 S-UI 面板信息</strong>确认显示 HTTPS 直连地址；否则证书尚未生效，仍为本机访问。检查 TCP 80 ACME 验证、DNS A、公网 IP、Certbot 版本、云厂商安全组入站 2095/TCP 和有效证书；不要开放明文 HTTP。</p>
-<p>如果 S-UI 已安装但 HTTPS 失败，保持原程序和凭据，到 S-UI 面板状态页点击<strong>继续完成 HTTPS</strong>即可创建四步证书修复任务，不必重新安装。订阅 2096/TCP 仍只监听本机。</p>
-<h2 id="npm-proxy">3X-UI / S-UI 选择 NPM 后无法访问</h2>
-<p>检查安装计划是否选择「不申请证书，交给 NPM 反向代理」，此时不会运行 Certbot 或申请 IP/域名证书。<strong>新安装的 3X-UI NPM 模式会按审批开启公网 HTTP 管理端口</strong>；如果是旧版安装且仍只监听 <code>127.0.0.1</code>，在「已安装面板」中点击<strong>开启公网 HTTP（不申请证书）</strong>创建两步变更计划，不需要重装。完成后显示公网 IP、端口和原有 Web 路径；若外部打不开，还需检查云安全组 TCP 入站。S-UI 仍只监听宿主机本机地址。如果 NPM 是 Docker 普通 bridge 网络，容器内的 127.0.0.1 不是 VPS 宿主机，代理会出现 502。请按 <a href="deployments.html#npm">NPM 统一 HTTPS 教程</a> 将 NPM 设置为 Linux host 网络（移除 Compose 中 ports），让它反代宿主机回环地址。NPM 拥有 80/443、管理端 81，注意端口冲突和云防火墙来源白名单。</p>
-<h2 id="dockge">Dockge Apps：Docker、端口与公网访问</h2>
-<p>新版本在没有 Docker 的干净 Debian/Ubuntu VPS 上，使用 <code>https://get.docker.com</code> 官方一键脚本安装 Docker，再验证 Compose v2。若存在旧数据、冲突软件包或非完整 Docker 环境，则停止自动安装以保护已有容器。</p>
-<p>管理端口留空自动随机生成，填写则按输入端口部署。遇到 <code>DOCKGE_PORT_BUSY</code> 或 <code>DOCKGE_ACCESS_PORT_BUSY</code>，可换一个端口后重新生成计划，不要强行结束其他服务。</p>
-<p>Dockge Apps 新安装默认生成 <code>http://服务器公网IP:端口/</code> 访问方案，安装页不再显示访问方式选项，公网风险会在部署审批页提示。已安装实例仍能在管理面板点击<strong>修改端口与访问方式</strong>。若公网链接打不开，检查对应 TCP 端口的云安全组入站规则；目前未自动配置 HTTPS，必须限制来源 IP 并尽快设置管理员。</p>
-<pre><code>docker ps --filter name=vpsdeploy-dockge-apps
-docker logs --tail 50 vpsdeploy-dockge-apps
-docker compose version</code></pre>
+<p>确认 VPS 真正监听对应端口、已通过有效 HTTPS / TLS 配置、云安全组的入站规则确实作用于目标实例，以及源 IP 和协议正确。云平台的 VPC 规则属于另一层网络控制。</p>
+<div class="callout"><strong>不要用「关掉 UFW」来排连通性</strong><p>那会失去本机端口过滤保护，SSH 和管理面板都暴露在外面。正确做法是精确开放所需端口，再到云安全组限制来源 IP。</p></div>
+
 <h2 id="invalidated">计划提示失效或需要刷新</h2>
-<p>如果服务器重装、SSH 主机密钥更换、证书域名或安装固定脚本发生变化，历史审批不再有效。可返回服务器控制台重新环境检测、刷新方案、再次审核。已有部分安装时先检查真实 VPS 状态，避免重复执行。</p>
+<p>固定脚本更新后，旧审批方案会按安全规则失效。看到「此部署方案来自旧版代码」或「部署计划已过期」时，刷新页面重新生成方案即可 —— 这是防止拿旧脚本去跑新服务器环境。</p>
+
+<h2 id="ssh-postinstall">安装完成但 SSH 握手失败（SSH_HANDSHAKE_FAILED）</h2>
+<p>如果日志显示安装器已返回成功，只是最后一步 SSH 连接和验收没完成，<strong>这不能证明程序没装好，请勿直接重复安装或清空原配置</strong>。</p>
+<ul>
+<li>更新面板并重启服务后刷新网页。新版会在执行远端命令之前最多尝试 3 次受信任的 SSH 连接，不会重复执行安装器、绕过主机指纹验证或自动重置 SSH。</li>
+<li>打开原来的失败/待验收任务，点<strong>只读检查现有安装（不重装）</strong>。它仅通过已经核对指纹的 SSH 检查服务、实际监听和本机 HTTP 响应。</li>
+</ul>
+<p>需要进一步排查时，在 Ubuntu/Debian 控制台执行下面的只读检查命令：</p>
+<pre><code>sudo systemctl status ssh --no-pager
+sudo ss -lntp | grep -E ':(22)[[:space:]]'
+sudo journalctl -u ssh -n 40 --no-pager</code></pre>
+<p>SSH 握手失败可能与临时负载、连接限制、sshd 状态或算法协商有关，单凭这条错误无法确定根因。<code>Test-NetConnection</code> 成功只说明 TCP 可达，不代表 SSH 协议握手正常。</p>
+
+<h2 id="own-trouble">自建项目的问题</h2>
+
+<h3 id="quote-empty">物流报价系统装完是空站 / 前台没有价格</h3>
+<p>这是<strong>预期行为</strong>：源码安装不带账号数据和报价表。登录 <code>/admin</code>，在后台「整表导入」上传报价表 xlsx，约 2～3 分钟生成全部价格，前台立即可用。</p>
+<ul>
+<li><strong>忘记 admin 密码</strong>：在服务器上执行 <code>node server/user.js passwd admin</code> 重置。新装的 admin 密码随机生成并打印在部署日志里。</li>
+<li><strong>上传后前台还是空的</strong>：后台「整表导入」面板有 7 步进度和当前步骤提示，导入失败会停在具体步骤。先看后台的改动记录页确认有没有写进去。</li>
+<li><strong>提示端口被占</strong>：后端默认 8792，被占会自动往后挑，挑好的端口写在站点目录的 <code>data/port</code> 里。</li>
+</ul>
+
+<h3 id="music-site">音乐解锁工具打不开 / 页面空白</h3>
+<ul>
+<li>先确认 nginx 的站点配置已生效：站点根目录应指向 <code>/var/www/music-unlock</code> 下的静态文件，不是后端端口。</li>
+<li>该站没有后端服务，<strong>不要去查 systemd 单元</strong> —— 它本来就不装常驻服务。</li>
+<li>域名没解析好时可以先勾「跳过 HTTPS 证书申请」用 HTTP 验证通路。</li>
+</ul>
+
+<h3 id="domain">证书签发失败 / 域名相关</h3>
+<ul>
+<li>域名证书要求 DNS 记录<strong>已经指向这台 VPS 的公网 IP</strong>，否则签发会失败。IP 证书则要求 TCP 80 能从公网访问（做 HTTP-01 验证）。</li>
+<li>Debian 13 自带 Certbot 4.0 <strong>不支持 IP 证书</strong>。本控制台在 IP 模式下会自动建独立 Python venv、装 Certbot 5.8.0 并配 <code>vpsdeploy-certbot-renew.timer</code>，不卸载系统旧 Certbot。看到 <code>Installed Certbot does not support IP certificates</code> 时更新面板后重试证书步骤即可。</li>
+<li>证书失败时<strong>不会退化成公网明文</strong>：服务会保持或恢复本机监听，用 SSH 隧道访问，并可单独重试证书阶段，不用覆盖重装。</li>
+</ul>
+
+<h2 id="upstream-trouble">上游项目的常见问题</h2>
+<p>3X-UI / S-UI / Dockge Apps / wg-easy 的安装步骤与验收方式见 <a href="deployments.html#upstream-notes">部署指南</a>。几个高频问题：</p>
+<ul>
+<li><strong>已装的面板显示的是本机地址</strong>：点「开启公网 HTTP（不申请证书）」审批两步监听变更任务即可，不用重装、不用重新申请证书。</li>
+<li><strong>NPM 反代后打不开</strong>：NPM 容器在普通桥接网络下，<code>127.0.0.1</code> 指向容器自己，反代不到宿主机。要把 NPM 的 Compose 服务改成 <code>network_mode: host</code> 并删掉原来的 <code>ports:</code> 映射后重建容器，代价是 80/443/81 变成宿主机端口，<strong>必须限制 81 的访问来源</strong>。</li>
+<li><strong>Dockge Apps 首次打不开或被抢先注册</strong>：它挂载 Docker Socket、权限很高，新装默认走公网 IP + 端口。先在云安全组把来源限制为自己的管理 IP，或用 SSH 隧道完成初始化。</li>
+<li><strong>wg-easy 管理页</strong>：默认只监听 <code>127.0.0.1:51821</code>，用 <code>ssh -N -p 22 -L 51821:127.0.0.1:51821 root@YOUR_VPS_IP</code> 隧道访问，不要直接开放公网。</li>
+</ul>
+
 <h2 id="support">如何反馈故障</h2>
-<p>在 <a href="https://github.com/Berg-E5/vps-deploy-panel/issues">GitHub Issues</a> 留下：面板版本、VPS 系统、CPU、执行项目、出错阶段和<strong>脱敏</strong>的最后一步错误。禁止上传 SSH 密码、Token、证书私钥、管理员初始密码或完整 <code>.env</code>。</p>
+<p>在 <a href="https://github.com/Berg-E5/vps-deploy-panel/issues">GitHub Issues</a> 留下：面板版本、VPS 系统、CPU、执行项目、出错阶段和<strong>脱敏</strong>的最后一步错误。<strong>禁止上传私钥、密码、令牌或真实服务器地址</strong>。</p>
