@@ -59,13 +59,13 @@ sudo journalctl -u ssh -n 40 --no-pager</code></pre>
 <li>证书失败时<strong>不会退化成公网明文</strong>：服务会保持或恢复本机监听，用 SSH 隧道访问，并可单独重试证书阶段，不用覆盖重装。</li>
 </ul>
 
-<h2 id="upstream-trouble">上游项目的常见问题</h2>
-<p>3X-UI / S-UI / Dockge Apps / wg-easy 的安装步骤与验收方式见 <a href="deployments.html#upstream-notes">部署指南</a>。几个高频问题：</p>
+<h2 id="upstream-trouble">其它项目的常见问题</h2>
+<p>其它内置项目的安装步骤与验收方式见 <a href="deployments.html#upstream-notes">部署指南</a>。几个通用的高频问题：</p>
 <ul>
-<li><strong>已装的面板显示的是本机地址</strong>：点「开启公网 HTTP（不申请证书）」审批两步监听变更任务即可，不用重装、不用重新申请证书。</li>
-<li><strong>NPM 反代后打不开</strong>：NPM 容器在普通桥接网络下，<code>127.0.0.1</code> 指向容器自己，反代不到宿主机。要把 NPM 的 Compose 服务改成 <code>network_mode: host</code> 并删掉原来的 <code>ports:</code> 映射后重建容器，代价是 80/443/81 变成宿主机端口，<strong>必须限制 81 的访问来源</strong>。</li>
-<li><strong>Dockge Apps 首次打不开或被抢先注册</strong>：它挂载 Docker Socket、权限很高，新装默认走公网 IP + 端口。先在云安全组把来源限制为自己的管理 IP，或用 SSH 隧道完成初始化。</li>
-<li><strong>wg-easy 管理页</strong>：默认只监听 <code>127.0.0.1:51821</code>，用 <code>ssh -N -p 22 -L 51821:127.0.0.1:51821 root@YOUR_VPS_IP</code> 隧道访问，不要直接开放公网。</li>
+<li><strong>装完了但只显示本机地址</strong>：走部署向导里的「开启公网 HTTP」审批任务改监听即可，不用重装、也不用重新申请证书。</li>
+<li><strong>反向代理之后打不开</strong>：容器在普通桥接网络下，<code>127.0.0.1</code> 指向容器自己，反代不到宿主机。要把对应的 Compose 服务改成 <code>network_mode: host</code> 并删掉原来的 <code>ports:</code> 映射后重建容器；代价是 80/443 等端口变成宿主机端口，<strong>必须限制管理端口的访问来源</strong>。</li>
+<li><strong>高权限项目首次打不开或被抢先注册</strong>：这类项目挂载 Docker Socket、权限很高，新装默认走公网 IP + 端口。先在云安全组把来源限制为自己的管理 IP，或用 SSH 隧道完成初始化。</li>
+<li><strong>管理页只监听本机</strong>：用 <code>ssh -N -p 22 -L &lt;本地端口&gt;:127.0.0.1:&lt;远端端口&gt; root@YOUR_VPS_IP</code> 开隧道访问，不要直接开放公网。</li>
 </ul>
 
 <h2 id="support">如何反馈故障</h2>

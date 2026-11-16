@@ -38,38 +38,11 @@
 <div class="table-wrap"><table><thead><tr><th>项目</th><th>当前能力</th><th>主要条件</th></tr></thead><tbody>
 <tr><td><strong>物流报价系统</strong></td><td>固定 commit 下载 → 校验 SHA-256 → systemd 单元 + nginx 反代 + 可选证书</td><td>Debian/Ubuntu、root、systemd、80/443 空闲、域名已解析</td></tr>
 <tr><td><strong>音乐解锁工具</strong></td><td>固定 commit 下载 → 校验 SHA-256 → 静态文件 + nginx 反代 + 可选证书</td><td>Debian/Ubuntu、root、80/443 空闲、域名已解析</td></tr>
-<tr><td>3X-UI</td><td>自动安装，选择原生 IP/域名 HTTPS 或 NPM 统一 HTTPS（不申请证书）</td><td>Debian/Ubuntu、root、x86_64/ARM64、systemd</td></tr>
-<tr><td>S-UI</td><td>固定 v1.6.6 安装，可由原生 IP/域名证书或 NPM 处理 HTTPS</td><td>Debian/Ubuntu、root、x86_64/ARM64、2095/2096 空闲；仅原生签证书时需 TCP 80</td></tr>
-<tr><td>sing-box</td><td>通过签名 APT 仓库安装内核</td><td>需自行创建配置、认证与监听</td></tr>
-<tr><td>wg-easy</td><td>使用 Docker Compose 安装 WireGuard 管理容器</td><td>Docker、Compose v2、51820/UDP 空闲</td></tr>
-<tr><td>Dockge Apps</td><td>源码构建；缺 Docker 时自动安装 Engine + Compose v2</td><td>Debian/Ubuntu AMD64/ARM64；干净 VPS 至少 4GB 空间，管理端口可自定义</td></tr>
-<tr><td>Hysteria2</td><td>仅引导、兼容性提示与技能资料</td><td>暂未开放正式一键自动部署</td></tr>
-<tr><td>Hiddify Manager</td><td>官网一键安装（release），人工审批（Beta）</td><td>独立 Ubuntu 22.04/24.04/26.04 VPS，标准 SSH 22，80/443 空闲</td></tr>
 </tbody></table></div>
 
-<h2 id="upstream-notes">上游项目的几个要点</h2>
-<p>各项目的端口、证书与安装参数由<strong>部署表单在生成方案时逐条列出</strong>，安装前可以逐行审阅，这里不重复抄写会随版本变化的细节。只记容易踩的坑和补救动作。</p>
-
-<h3 id="panels">3X-UI / S-UI</h3>
-<ul>
-<li>已装的面板优先点 <strong>查看已安装面板</strong>，不要直接重装。旧安装若只显示本机地址，点「开启公网 HTTP（不申请证书）」审批两步监听变更任务即可，无需重装、无需重新申请证书。</li>
-<li>证书失败时面板<strong>不会退化成公网明文</strong>：S-UI 会保持或恢复 <code>127.0.0.1:2095</code>，用 SSH 隧道访问，点<strong>继续完成 HTTPS</strong>单独重试证书阶段。订阅 2096/TCP 永远只监听本机。</li>
-<li><strong>Debian 13 的 IP 证书</strong>：系统自带 Certbot 4.0 不支持 IP 证书。本控制台在 IP 模式下会自动建独立 Python venv、装 Certbot 5.8.0 并配 <code>vpsdeploy-certbot-renew.timer</code>，不卸载系统旧 Certbot。曾在「步骤 7/9」失败的，更新面板后点<strong>继续完成 HTTPS</strong>，只重试证书步骤。</li>
-<li><strong>NPM 统一 HTTPS</strong>：该模式不调用 Certbot、不占 ACME TCP 80，只做 5 步基础安装。NPM 的 Forward Host 填 <code>127.0.0.1</code>（3X-UI 端口可改、S-UI 为 2095），3X-UI 要开 WebSockets Support。</li>
-</ul>
-<div class="callout warn"><strong>NPM 的 Docker 网络模式</strong><p>普通桥接网络里的 NPM 容器，<code>127.0.0.1</code> 指向容器自己，<strong>不能直接反代宿主机</strong>。要用这些上游地址，需把 NPM 的 Compose 服务设成 <code>network_mode: host</code>，并删掉原来的 <code>ports:</code> 映射后重建容器。代价是 NPM 的 80/443/81 会成为宿主机端口，<strong>必须在云安全组限制 81 管理入口</strong>。</p></div>
-
-<h3 id="dockge">Dockge Apps</h3>
-<ul>
-<li>管理端口留空时自动随机生成 20000–59999，也可手填 1024–65535，会检查与 SSH 和现有服务的冲突。</li>
-<li>全新 Debian/Ubuntu 没有 Docker 时会自动执行 <a href="https://get.docker.com">Docker 官方一键安装脚本</a>，验收 Compose v2、Buildx 与 Git 后继续。脚本先做语法检查、dry-run 和文件校验再执行本地副本。</li>
-<li>安装后点<strong>查看 Dockge Apps 面板信息</strong>；已有受管理的实例可用<strong>修改端口与访问方式</strong>，只改容器端口映射并保留数据，不重装。</li>
-</ul>
-<div class="callout warn"><strong>默认公网直连的安全注意事项</strong><p>Dockge Apps 挂载 Docker Socket，有很高的 VPS 管理权限。新安装默认走公网 IP + 端口，审批时会再次提醒：首次管理员还没创建时，能访问该端口的人可能抢先注册。建议先在云安全组限制来源为自己的固定管理 IP，或用 SSH 隧道完成初始化。Docker 映射端口可能绕过 UFW；本控制台不会自行修改云安全组。</p></div>
-
-<h3 id="others">sing-box / wg-easy</h3>
-<p><strong>sing-box</strong> 只安装内核，不会自动产生可用节点、TLS 证书或公网监听，需自行完成合法配置并运行 <code>sing-box check</code>。<strong>wg-easy</strong> 默认隧道用 <code>51820/UDP</code>，Web 管理页绑定 <code>127.0.0.1:51821</code>，首次访问用 SSH 隧道初始化：</p>
-<pre><code>ssh -N -p 22 -L 51821:127.0.0.1:51821 root@YOUR_VPS_IP</code></pre>
+<h2 id="upstream-notes">其它项目怎么装</h2>
+<p>项目库里还收录了若干通用开源项目（代理面板、代理内核、Docker 应用中心等）。它们各自的端口、证书方式、镜像来源和前置条件都不一样，而且会随版本变化 —— <strong>以面板里该项目的安装说明为准</strong>，生成方案时会逐条列出这一单实际要执行的步骤与参数。</p>
+<p>通用规则只有一条：每个项目都钉在具体 commit，下载后校验 <code>install.sh</code> 的 SHA-256，端口被占或已装过就直接阻断，不会覆盖你现有的东西。审批前会再跑一次环境检测，服务器状态变了会要求重新生成方案。</p>
 
 <h2 id="jobs">失败、重试与日志</h2>
 <p>任务列表会显示等待审批、执行中、已完成、部分成功或失败状态。出现异常时，先看最后一步的实际日志，再通过服务器控制台核对远端程序状态。<strong>不同版本的固定脚本变更后应刷新旧审批方案</strong>，不能继续执行过期计划。</p>

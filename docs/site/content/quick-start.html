@@ -30,14 +30,14 @@ ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub -E sha256</code></pre>
 <li><strong>音乐解锁工具</strong> —— 浏览器端本地解锁。只需站点域名，纯静态站，没有后端也没有常驻服务。详细步骤见 <a href="deployments.html#music-unlock">部署指南</a>。</li>
 </ul>
 
-<h3 id="built-in">内置项目</h3>
-<p>3X-UI、S-UI、sing-box、wg-easy、Dockge Apps 等。系统会识别现有安装并生成计划，先展示兼容性要求、具体命令和风险，再由管理员审核批准。Hysteria2 当前仍为引导方案，不能当作完整自动安装。</p>
+<h3 id="built-in">其它内置项目</h3>
+<p>项目库里还有若干通用开源项目。系统会识别现有安装并生成计划，先展示兼容性要求、具体命令和风险，再由管理员审核批准；每个项目的前置条件和当前支持程度，以面板里该项目的安装说明为准。</p>
 
 <h2 id="after">任务执行完成后</h2>
 <p>到 <strong>最近任务</strong> 查看状态与分步骤日志。</p>
 <ul>
 <li><strong>物流报价系统</strong>：任务日志里会打印首次启动随机生成的 admin 密码；用 <code>http://你的域名/admin</code> 登录后，在后台「整表导入」上传报价表 xlsx，约 2～3 分钟生成全部价格，前台立即可用。</li>
 <li><strong>音乐解锁工具</strong>：浏览器打开 <code>http://你的域名</code> 即可使用，解密在浏览器里完成，文件不上传服务器。</li>
-<li>支持展示初始凭据的面板项目（3X-UI、S-UI），可点 查看面板信息 按需读取 VPS 上的初始凭据。</li>
+<li>部分面板类项目支持展示初始凭据，可在对应任务里点 查看面板信息 按需读取 VPS 上的初始凭据。</li>
 </ul>
 <div class="callout"><strong>任务失败怎么办</strong><p>先对照 <a href="troubleshooting.html">常见问题</a>，不要在原 VPS 上盲目重复安装。不同版本的固定脚本变更后应刷新旧审批方案。</p></div>

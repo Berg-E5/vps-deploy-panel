@@ -12,9 +12,7 @@
 <tr><td>80</td><td>TCP</td><td>HTTP。签发域名或 IP 证书时要做 HTTP-01 验证，需从公网可访问；自建项目走 nginx 反代也用它。</td></tr>
 <tr><td>443</td><td>TCP</td><td>HTTPS。自建项目启用证书后走这里。</td></tr>
 <tr><td>8792</td><td>TCP</td><td>物流报价系统后端。只监听 <code>127.0.0.1</code>，由 nginx 反代，<strong>不需要公网放行</strong>。</td></tr>
-<tr><td>按安装表单</td><td>TCP</td><td>3X-UI / S-UI / Dockge Apps 的管理端口由部署表单给出（面板端口可自定义、S-UI 2095、Dockge 随机）。<strong>确认 HTTPS 验收通过后再放行，云安全组只允许你的管理 IP</strong>。</td></tr>
-<tr><td>2096</td><td>TCP</td><td>S-UI 订阅端口，本控制台保持 <code>127.0.0.1</code>，<strong>不开放公网</strong>。</td></tr>
-<tr><td>51820</td><td>UDP</td><td>wg-easy WireGuard 隧道，需按实际使用场景放行。</td></tr>
+<tr><td>按安装表单</td><td>TCP/UDP</td><td>其它内置项目的管理端口、订阅端口、隧道端口都由部署表单在生成方案时逐条给出。<strong>确认 HTTPS 验收通过后再放行，云安全组只允许你的管理 IP</strong>；面板标注保持本机监听的端口不要开公网。</td></tr>
 </tbody></table></div>
 <h2 id="cloud">云厂商安全组快捷入口</h2>
 <div class="cards">
