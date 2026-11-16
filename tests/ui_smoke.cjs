@@ -358,8 +358,8 @@ function fingerprintFor(label) {
   assert(!made.get('#projects-section').classList.contains('is-featured'),
     'The featured-only class must not remain on the catalog page');
   assert(typographyCss.includes('#projects-section.is-catalog>.section-heading{display:none}'),
-    'Project Center must hide the duplicate 精选部署项目 heading and redundant self-link');
-  assert(made.get('#section-title').textContent==='项目中心');
+    'Project Library must hide the duplicate 常用项目 heading and redundant self-link');
+  assert(made.get('#section-title').textContent==='项目库');
   assert(made.get('#section-subtitle').textContent.includes('共 5 个项目'));
   assert.equal((made.get('#project-grid').innerHTML.match(/data-action="plan"/g)||[]).length,5,
     'Catalog must retain every project action');
@@ -394,7 +394,7 @@ function fingerprintFor(label) {
   evaluate('openHostConsole(1)');
   assert(modal.innerHTML.includes('继续审批部署'), 'Primary action must be visible');
   assert(modal.innerHTML.includes('部署方案已准备好'), 'Must explain pending approval');
-  assert(modal.innerHTML.indexOf('继续审批部署') < modal.innerHTML.indexOf('最近部署任务'),
+  assert(modal.innerHTML.indexOf('继续审批部署') < modal.innerHTML.indexOf('最近任务'),
     'Approval must come before routine history');
   assert(modal.innerHTML.includes('安装软件'), 'Use understandable tab labels');
   assert(!modal.innerHTML.includes('四项权限确认'), 'No unnecessary confirmations');
@@ -1009,7 +1009,7 @@ function fingerprintFor(label) {
   assert.equal(messages.children.length,2,'Keep the transcript when the chat closes');
   document.querySelector('#codex-prompt').value='为 Test VPS 生成 S-UI 部署方案';
   await codexForm.dispatch('submit',{currentTarget:codexForm,preventDefault(){}});
-  assert(modal.innerHTML.includes('S-UI · 部署任务'));
+  assert(modal.innerHTML.includes('S-UI · 任务'),'Show the project name in the draft title');
   assert(modal.innerHTML.includes('id="approve-form"'),'Show the generated draft for review immediately');
   assert(modal.innerHTML.includes('管理面板通过 SSH 隧道访问'));
   assert.equal(codexApprovalRequests,0,'Opening an AI draft must never submit approval');
