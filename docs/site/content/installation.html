@@ -34,6 +34,6 @@ sudo chown -R 10001:10001 data
 sudo docker compose up -d --build</code></pre>
 <p>从另一台电脑访问 NAS 上的面板时，建议先建立 SSH 隧道：</p>
 <pre><code>ssh -L 8787:127.0.0.1:8787 YOUR_USER@YOUR_NAS_IP</code></pre>
-<p>然后在本机浏览器打开 <code>http://127.0.0.1:8787</code>，使用 <code>.env</code> 中的管理员令牌登录。Docker / NAS 模式<strong>不启用 Windows 本地自动登录</strong>。需要 SSH 私钥登录 VPS 时，使用专用私钥并按 <a href="https://github.com/slobys/netdeploy-ai/blob/main/compose.yaml">Compose 配置</a> 提供只读密钥；密码登录不需要设置私钥文件。</p>
+<p>然后在本机浏览器打开 <code>http://127.0.0.1:8787</code>，使用 <code>.env</code> 中的管理员令牌登录。Docker / NAS 模式<strong>不启用 Windows 本地自动登录</strong>。需要 SSH 私钥登录 VPS 时，使用专用私钥并按 <a href="https://github.com/Berg-E5/vps-deploy-panel/blob/main/compose.yaml">Compose 配置</a> 提供只读密钥；密码登录不需要设置私钥文件。</p>
 <h2 id="after-install">下一步</h2>
 <p>打开 <a href="quick-start.html">五步部署教程</a>，先在测试 VPS 上练习完整流程。</p>
