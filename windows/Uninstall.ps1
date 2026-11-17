@@ -49,7 +49,12 @@ foreach ($conn in $listeners) {
     $proc = Get-CimInstance Win32_Process -Filter "ProcessId=$ownerId" -ErrorAction SilentlyContinue
     if (-not $proc) { continue }
     $cmdline = $proc.CommandLine
-    if ($cmdline -and ($cmdline -like "*$appDir*" -or $cmdline -like '*launcher.pyw*')) {
+    if (-not $cmdline) { continue }
+    # 路径分隔符要统一: 安装目录是 \, 而进程命令行里可能是 /,
+    # 不归一化就匹配不上, 面板进程会活下来把文件锁住。
+    $normCmd = $cmdline.Replace('\', '/').ToLowerInvariant()
+    $normApp = $appDir.Replace('\', '/').ToLowerInvariant()
+    if ($normCmd.Contains($normApp) -or $normCmd.Contains('launcher.pyw')) {
         $targets += $ownerId
     }
 }
