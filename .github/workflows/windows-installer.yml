@@ -104,3 +104,32 @@ jobs:
           name: VPSDeployPanel-Windows-Setup
           path: dist/*Setup.exe
           if-no-files-found: error
+
+      - name: Publish the installer as a GitHub release
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: powershell
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $setup = Get-ChildItem -Path .\dist -Filter '*Setup.exe' | Select-Object -First 1
+          $tag = $env:GITHUB_REF_NAME
+          # 已有同名 release 就补资产, 避免重复发布失败
+          $existing = gh release view $tag --repo $env:GITHUB_REPOSITORY --json tagName 2>$null
+          if ($existing) {
+            gh release upload $tag $setup.FullName --repo $env:GITHUB_REPOSITORY --clobber
+          } else {
+            # 发布说明写成文件: here-string 的结束标记必须顶格,
+            # 放进 YAML 块标量里会把块截断
+            $notesFile = Join-Path $env:RUNNER_TEMP 'release-notes.md'
+            @(
+              'Windows 安装包 (VPS Deploy Panel)',
+              '',
+              '- 自带 Python 运行时与全部依赖, 目标机器不需要预先装 Python 或 Git',
+              '- 装到当前用户目录, 不需要管理员权限',
+              '- 可选勾选「登录时自动启动」',
+              '- 面板只监听 127.0.0.1:8787'
+            ) | Set-Content -Path $notesFile -Encoding UTF8
+            gh release create $tag $setup.FullName --repo $env:GITHUB_REPOSITORY --title "VPS Deploy Panel $tag (Windows 安装包)" --notes-file $notesFile
+          }
+          Write-Host "release published: $tag"

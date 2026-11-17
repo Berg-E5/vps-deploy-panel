@@ -122,7 +122,7 @@ Windows 上 `core.autocrlf=true` 时工作区是 CRLF、索引里是 LF，
 
 ### 方式一：安装包（推荐给普通用户）
 
-下载 `VPSDeployPanel-<版本>-Setup.exe` 双击安装即可，**不需要预先装 Python 或 Git**：
+从 [Releases 页面](https://github.com/Berg-E5/vps-deploy-panel/releases/latest) 下载 `VPSDeployPanel-<版本>-Setup.exe`，双击安装即可，**不需要预先装 Python 或 Git**：
 
 - 安装包自带 Python 运行时和全部依赖，装完约 110 MB
 - 装到 `%LOCALAPPDATA%\Programs\VPS Deploy Panel`，**不需要管理员权限**
