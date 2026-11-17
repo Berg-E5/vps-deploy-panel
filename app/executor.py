@@ -464,7 +464,10 @@ if ! command -v ss >/dev/null 2>&1; then echo TCP_80=unknown; elif ss -Hltn 'spo
 if ! command -v ss >/dev/null 2>&1; then echo TCP_443=unknown; elif ss -Hltn 'sport = :443' | grep -q .; then echo TCP_443=busy; else echo TCP_443=free; fi
 if [ -d /var/www/quote.byberg.store ] || [ -d /var/www/quote-app ] || (command -v systemctl >/dev/null 2>&1 && systemctl list-unit-files --no-legend quote-server.service 2>/dev/null | grep -q '^quote-server[.]service'); then echo QUOTE_PRESENT=yes; else echo QUOTE_PRESENT=no; fi
 if [ -d /var/www/music-unlock ] || [ -d /srv/music-unlock ]; then echo MUSIC_PRESENT=yes; else echo MUSIC_PRESENT=no; fi
-if [ -d /opt/hermes-agent ] || [ -d "$HOME/.hermes" ] || (command -v systemctl >/dev/null 2>&1 && systemctl list-unit-files --no-legend hermes-gateway.service 2>/dev/null | grep -q '^hermes-gateway[.]service'); then echo HERMES_PRESENT=yes; else echo HERMES_PRESENT=no; fi
+# Hermes Agent 的占用判断用上游自己的约定: HERMES_HOME (~/.hermes) 和
+# 上游派生的服务名 hermes-gateway.service (可能是 hermes-gateway-<hash>)。
+# 命中任意一个都说明这台机器上已经有一个 Hermes 实例。
+if [ -d "$HOME/.hermes" ] || (command -v systemctl >/dev/null 2>&1 && systemctl list-unit-files --no-legend 'hermes-gateway*.service' 2>/dev/null | grep -q '^hermes-gateway'); then echo HERMES_PRESENT=yes; else echo HERMES_PRESENT=no; fi
 """ + ENV_CHECK
         if include_hiddify:
             if host["port"] == 22:

@@ -20,6 +20,17 @@
 <li><strong>纯静态站</strong>：服务器只放静态文件和 nginx 配置，<strong>没有后端、没有数据库、不装常驻服务</strong>。解密在浏览器 Worker 里跑，<strong>文件不上传服务器</strong>。</li>
 </ol>
 
+<h2 id="hermes-agent">命令行 Agent：Hermes Agent</h2>
+<p>除了两个自建项目，项目库还收录了 <a href="https://github.com/NousResearch/hermes-agent">NousResearch/hermes-agent</a>（MIT 协议）。它<strong>没有 Web 面板</strong> —— 装完通过 <code>hermes</code> 命令行使用，<strong>不占 80/443、不需要域名、不写 nginx 配置</strong>。</p>
+<ol>
+<li>在项目库选择 <strong>Hermes Agent</strong>，按需勾选「跳过浏览器与 Computer Use 组件」（这两项依赖很重，$5 级别的 VPS 建议跳过）。</li>
+<li>面板会从公开仓库的<strong>固定 commit</strong> 下载源码，先校验 <code>scripts/install.sh</code> 的 SHA-256 再执行；安装脚本自身再按同一个 commit 固定安装的代码版本，<strong>不追 main 分支，也不做 <code>curl | bash</code> 管道</strong>。</li>
+<li>安装用上游官方的 <code>install.sh</code> 完成（它自己用 pm/uv 拉 Python、Node 和依赖，需要能访问 GitHub、PyPI、npm）。<strong>根分区至少留 3GB、可用内存至少 1GB</strong>。</li>
+<li><strong>网关 systemd 服务由上游自己的 <code>hermes gateway install --system</code> 生成</strong> —— 服务名、PATH 和停止时的清理逻辑都由上游决定，所以装完之后 <code>hermes gateway status</code> / <code>restart</code> / <code>stop</code> 都能正常管理它，不用额外学习另一套命令。</li>
+<li>网关以 <code>root</code> 身份运行（上游在 root 下要求显式声明这一点）。<strong>它需要你自己配模型 API key 才能真正接上消息平台</strong>；没配之前网关没有平台可接，但仍会常驻并接受 cron 任务，这不是安装失败。装完后执行 <code>hermes setup</code> 完成配置。</li>
+</ol>
+<div class="callout warn"><strong>不会覆盖你已有的 Hermes</strong><p>目标机上只要存在 <code>~/.hermes</code> 主目录，或者已经有 <code>hermes-gateway</code> 服务单元，面板就会<strong>直接阻断</strong>，不会动你手工装的那份实例。</p></div>
+
 <h2 id="how-deploy-runs">部署是怎么执行的</h2>
 <p>添加 VPS → 核对指纹 → 环境检测 → 可选网络配置 → 生成方案 → 审批执行。</p>
 <p>面板不会「点一下就不经确认地运行远程命令」。它先检查系统版本、端口占用和已有安装，再生成一份可逐行查看的固定脚本；你确认之后才会在服务器上执行。执行过程和每一步的输出都记录在任务记录里。</p>
@@ -38,6 +49,7 @@
 <div class="table-wrap"><table><thead><tr><th>项目</th><th>当前能力</th><th>主要条件</th></tr></thead><tbody>
 <tr><td><strong>物流报价系统</strong></td><td>固定 commit 下载 → 校验 SHA-256 → systemd 单元 + nginx 反代 + 可选证书</td><td>Debian/Ubuntu、root、systemd、80/443 空闲、域名已解析</td></tr>
 <tr><td><strong>音乐解锁工具</strong></td><td>固定 commit 下载 → 校验 SHA-256 → 静态文件 + nginx 反代 + 可选证书</td><td>Debian/Ubuntu、root、80/443 空闲、域名已解析</td></tr>
+<tr><td><strong>Hermes Agent</strong></td><td>固定 commit 下载 → 校验 SHA-256 → 官方 install.sh 装 CLI 与依赖 → 上游自己注册网关 systemd 服务</td><td>Debian/Ubuntu、root、systemd、3GB 空间 / 1GB 内存、未装过 Hermes</td></tr>
 </tbody></table></div>
 
 <h2 id="upstream-notes">其它项目怎么装</h2>

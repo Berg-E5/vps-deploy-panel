@@ -109,9 +109,10 @@ CATALOG = {
         "icon": "spark", "deployment": "install", "risk": "中",
         "docs": "https://github.com/NousResearch/hermes-agent",
         "summary": "固定 commit 的公开源码；用官方 install.sh 装好 CLI 与依赖，"
-                   "并注册一个 hermes-gateway systemd 服务（接 Telegram / Discord 等消息平台）。"
+                   "再由上游自己的 gateway install --system 注册 systemd 网关服务"
+                   "（接 Telegram / Discord 等消息平台）。"
                    "它没有 Web 面板，装完通过命令行使用，因此不占 80/443、不需要域名。",
-        "requires": ["Debian/Ubuntu root VPS", "systemd", "git / curl / python3",
+        "requires": ["Debian/Ubuntu root VPS", "systemd", "git / curl",
                      "根分区可用空间 3GB 以上", "可用内存 1GB 以上",
                      "未安装过 Hermes Agent"],
     },
@@ -307,7 +308,7 @@ def compatibility(project: str, facts: dict[str, Any], options: dict | None = No
         if facts.get("GIT_AVAILABLE") != "yes":
             issues.append("缺少 git，无法获取固定 commit 的源码")
         if facts.get("HERMES_PRESENT") == "yes":
-            issues.append("已存在 Hermes Agent 安装（安装目录、~/.hermes 或 hermes-gateway 服务），拒绝覆盖")
+            issues.append("已存在 Hermes Agent 安装（~/.hermes 主目录或 hermes-gateway 服务单元），拒绝覆盖")
         if int(facts.get("FREE_KB") or 0) < 3145728:
             issues.append("根分区可用空间不足 3GB（依赖较重）")
     if project in {"logistics-quote", "music-unlock"}:
@@ -444,12 +445,14 @@ def build_plan(project: str, facts: dict[str, Any], options: dict | None = None)
             raise ValueError("HTTP 公网升级仅允许填写已核验的面板端口")
         options = {"panel_port": validate_port(options["panel_port"])}
     elif project == "hermes-agent":
-        if set(options) - {"installdir", "skip_browser"}:
+        # 安装目录和 HERMES_HOME 都用上游默认布局 —— 上游的 launcher 路径、
+        # PM store 和服务名派生都按这个布局推导, 面板改了就对不上。
+        if set(options) - {"skip_browser"}:
             raise ValueError("Hermes Agent 部署选项包含未授权字段")
-        options = {
-            "installdir": validate_docroot(options.get("installdir", "")),
-            "skip_browser": bool(options.get("skip_browser", True)),
-        }
+        skip_browser = options.get("skip_browser", True)
+        if type(skip_browser) is not bool:
+            raise ValueError("skip_browser 必须是布尔值")
+        options = {"skip_browser": skip_browser}
     elif project in {"s-ui", "s-ui-https"}:
         allowed = {"access_mode", "tls_identity", "certificate_type", "ssh_ipv4", "ssh_ipv6"}
         if project == "s-ui-https":
@@ -569,8 +572,7 @@ def build_plan(project: str, facts: dict[str, Any], options: dict | None = None)
                                    options.get("docroot", ""),
                                    options.get("skip_ssl", False))
     elif runnable and project == "hermes-agent":
-        steps = hermes_agent_steps(options.get("installdir", ""),
-                                   options.get("skip_browser", True))
+        steps = hermes_agent_steps(options.get("skip_browser", True))
     else:
         steps = []
     plan = {
@@ -627,10 +629,12 @@ def build_plan(project: str, facts: dict[str, Any], options: dict | None = None)
                 "安装会用 pm/uv 拉取 Python、Node 与依赖，需要访问 GitHub、PyPI 与 npm 源；"
                 "依赖较重，根分区至少留 3GB、可用内存至少 1GB",
                 "它没有 Web 面板：不占 80/443、不需要域名、不写 nginx 配置；装完通过命令行 hermes 使用",
-                "面板会注册一个 hermes-gateway systemd 服务（接 Telegram / Discord 等消息平台），"
-                "但它需要你自己配模型 API key 才能真正连上；没配之前服务会反复重启，这不是安装失败",
+                "网关 systemd 服务由上游自己的 hermes gateway install --system 生成（服务名、PATH 和"
+                "清理逻辑都由上游决定），因此 hermes gateway status / restart / stop 都能正常管理它",
+                "网关以 root 身份运行（上游在 root 下要求显式声明），它需要你自己配模型 API key 才能"
+                "真正连上消息平台；没配之前网关没有平台可接但仍然常驻，这不是安装失败",
                 "跳过浏览器与 Computer Use 组件时，hermes 的浏览器类工具不可用；之后可自行补装",
-                "不会覆盖已存在的 Hermes Agent 安装（安装目录、~/.hermes 或 hermes-gateway 服务）",
+                "不会覆盖已存在的 Hermes Agent 安装（~/.hermes 主目录或 hermes-gateway 服务单元）",
             ],
             "logistics-quote": [
                 "从 GitHub 公开仓库的固定 commit 下载源码，校验 deploy/install.sh 的 SHA-256 后才执行；不追 main 分支，不使用 curl | bash",

@@ -2,7 +2,8 @@
 
 覆盖面板接入 Hermes Agent 的全部约束:
 固定 commit、固定 SHA-256、无 curl|bash、审批后执行、
-不需要域名/80-443、已装拒绝覆盖、systemd 单元真实存在、
+不需要域名/80-443、已装拒绝覆盖、
+systemd 单元由上游 `hermes gateway install --system` 生成（面板不自己写单元）、
 验收步骤不虚构 HTTP 健康端点。
 """
 from __future__ import annotations
@@ -30,7 +31,7 @@ GOOD_FACTS = {
 
 def _plan(**options):
     facts = dict(GOOD_FACTS)
-    opts = {"installdir": "", "skip_browser": True}
+    opts = {"skip_browser": True}
     opts.update(options)
     return C.build_plan("hermes-agent", facts, opts)
 
@@ -87,12 +88,31 @@ def test_download_step_verifies_checksum():
     assert W.HERMES_AGENT_COMMIT in script
 
 
+def test_download_checksum_line_is_double_quoted():
+    """$SRC 必须能展开 —— 单引号会让校验读一个名字字面量, 必然失败。"""
+    plan = _plan()
+    checksum_lines = [line for line in _scripts(plan).splitlines() if "sha256sum -c" in line]
+    assert checksum_lines
+    for line in checksum_lines:
+        assert "'" not in line, line
+
+
 def test_install_step_pins_commit_and_non_interactive():
     plan = _plan()
     scripts = _scripts(plan)
     assert "--commit" in scripts
     assert W.HERMES_AGENT_COMMIT in scripts
     assert "--non-interactive" in scripts
+
+
+def test_install_step_uses_upstream_default_layout():
+    """不改 --dir / --hermes-home: 上游的 launcher 和 store 都按默认布局推导。"""
+    install_cmd = " ".join(
+        line for line in _scripts(_plan()).splitlines()
+        if "scripts/install.sh" in line or line.strip().startswith("--")
+    )
+    assert "--dir" not in install_cmd
+    assert "--hermes-home" not in install_cmd
 
 
 def test_never_pipes_remote_script_to_shell():
@@ -155,18 +175,13 @@ def test_steps_have_timeouts():
     {"domain": "example.com"},
     {"panel_port": 8080},
     {"docroot": "/var/www/x"},
-    {"installdir": "/opt/x", "evil": "1"},
+    {"installdir": "/opt/x"},
+    {"hermes_home": "/srv/hermes"},
+    {"skip_browser": True, "evil": "1"},
 ])
 def test_unauthorized_option_fields_are_rejected(bad):
     with pytest.raises(ValueError):
         C.build_plan("hermes-agent", dict(GOOD_FACTS), bad)
-
-
-def test_installdir_must_be_absolute_without_dotdot():
-    C.build_plan("hermes-agent", dict(GOOD_FACTS), {"installdir": "/opt/hermes-agent"})
-    for bad in ("opt/hermes", "/opt/../etc", "~/hermes", "/opt/.."):
-        with pytest.raises(ValueError):
-            C.build_plan("hermes-agent", dict(GOOD_FACTS), {"installdir": bad})
 
 
 def test_skip_browser_flag_is_boolean():
@@ -175,6 +190,7 @@ def test_skip_browser_flag_is_boolean():
     assert "--skip-browser" not in scripts
     plan2 = _plan(skip_browser=True)
     assert "--skip-browser" in _scripts(plan2)
+    assert "--skip-computer-use" in _scripts(plan2)
 
 
 # ------------------------------------------------------------------ 预检
@@ -183,7 +199,7 @@ def test_skip_browser_flag_is_boolean():
 def _issues(project, **overrides):
     facts = dict(GOOD_FACTS)
     facts.update(overrides)
-    return C.build_plan(project, facts, {"installdir": "", "skip_browser": True})["issues"]
+    return C.build_plan(project, facts, {"skip_browser": True})["issues"]
 
 
 def test_preflight_passes_on_supported_host():
@@ -220,7 +236,7 @@ def test_preflight_does_not_require_web_ports():
     facts = dict(GOOD_FACTS)
     facts["TCP_80"] = "used"
     facts["TCP_443"] = "used"
-    plan = C.build_plan("hermes-agent", facts, {"installdir": "", "skip_browser": True})
+    plan = C.build_plan("hermes-agent", facts, {"skip_browser": True})
     assert plan["issues"] == []
 
 
@@ -232,23 +248,32 @@ def test_install_step_rejects_existing_install():
     assert "拒绝覆盖" in scripts
 
 
-def test_systemd_unit_is_written_and_enabled():
+def test_existing_install_check_uses_upstream_conventions():
+    """占用判断必须按上游的约定: ~/.hermes 与 hermes-gateway 服务单元。"""
     scripts = _scripts(_plan())
-    assert "/etc/systemd/system/hermes-gateway.service" in scripts
-    assert "systemctl enable hermes-gateway.service" in scripts
-    assert "systemctl daemon-reload" in scripts
+    assert "$HOME/.hermes" in scripts
+    assert "hermes-gateway*.service" in scripts
 
 
-def test_systemd_unit_executes_hermes_gateway():
+def test_service_unit_is_created_by_upstream_cli():
+    """面板不自己写 systemd 单元 —— 必须由上游 hermes gateway install 生成。"""
     scripts = _scripts(_plan())
-    assert "ExecStart=" in scripts
-    assert " gateway" in scripts
+    assert "gateway install --system" in scripts
+    assert "--run-as-user root" in scripts
+    # 面板不许手写单元文件
+    assert "/etc/systemd/system/hermes" not in scripts
+    assert 'cat > "/etc/systemd/system/' not in scripts
 
 
-def test_install_script_uses_absolute_install_dir():
-    plan = _plan(installdir="/opt/hermes-agent")
-    scripts = _scripts(plan)
-    assert "/opt/hermes-agent" in scripts
+def test_upstream_service_name_is_used():
+    """服务名由上游派生 (默认 home 下是 hermes-gateway.service), 面板照它验收。"""
+    scripts = _scripts(_plan())
+    assert "hermes-gateway.service" in scripts
+
+
+def test_acceptance_uses_upstream_cli_to_recognize_the_service():
+    scripts = _scripts(_plan())
+    assert "gateway status --system" in scripts
 
 
 def test_verification_step_does_not_fake_http_health_check():
@@ -261,11 +286,18 @@ def test_verification_step_does_not_fake_http_health_check():
 
 def test_verification_requires_service_enabled():
     scripts = _scripts(_plan())
-    assert "systemctl is-enabled hermes-gateway.service" in scripts
+    assert "systemctl is-enabled" in scripts
+
+
+def test_verification_checks_unit_points_at_this_install():
+    """ExecStart 必须指向本次安装的启动器, 避免验到别人的单元。"""
+    scripts = _scripts(_plan())
+    assert "ExecStart" in scripts
+    assert "HERMES_HOME" in scripts
 
 
 def test_plan_tells_user_to_configure_model_api_key():
-    """没配 API key 时网关会反复重启 —— 必须在安装输出里说清楚。"""
+    """没配 API key 时网关没有平台可接 —— 必须在安装输出里说清楚。"""
     scripts = _scripts(_plan())
     assert "hermes setup" in scripts or "hermes model" in scripts
 
@@ -275,3 +307,10 @@ def test_docroot_is_not_required_for_hermes():
     scripts = _scripts(_plan())
     assert "server_name" not in scripts
     assert "certbot" not in scripts
+
+
+def test_plan_does_not_claim_a_custom_install_dir():
+    """安装目录由上游默认布局决定, 面板不提供自定义路径。"""
+    plan = _plan()
+    assert plan["options"] == {"skip_browser": True}
+    assert "/opt/hermes-agent" not in _scripts(plan)

@@ -1270,16 +1270,13 @@ function chooseHost(project,selectedHostId=null){
 <div class="form-group"><label class="inline"><input type="checkbox" name="skip_ssl"/> 跳过 HTTPS 证书申请</label>
 <p class="helptext">只在 DNS 还没配好、或想先用 HTTP 验证时勾选。生产环境建议申请证书。</p></div>
 <div class="modal-tip">${project==='logistics-quote'?'从公开源码安装是<b>空站</b>：没有账号数据和报价表，装完要在后台「整表导入」上传报价表才能报价。':'纯静态站，解密全在浏览器里跑，文件不上传。'}</div>`:''}
- ${project==='hermes-agent'?`<div class="form-group"><label>安装目录（可选）</label>
-<input name="installdir" placeholder="留空使用默认目录 /opt/hermes-agent" autocomplete="off"/>
-<p class="helptext">必须是绝对路径。留空则使用默认目录。</p></div>
-<div class="form-group"><label class="inline"><input type="checkbox" name="skip_browser" checked/> 跳过浏览器与 Computer Use 组件</label>
-<p class="helptext">这两项依赖很重，$5 级别的 VPS 建议跳过；需要浏览器工具时再装。</p></div>
+ ${project==='hermes-agent'?`<div class="form-group"><label class="inline"><input type="checkbox" name="skip_browser" checked/> 跳过浏览器与 Computer Use 组件</label>
+<p class="helptext">这两项依赖很重，$5 级别的 VPS 建议跳过；需要浏览器工具时再补装。</p></div>
 <div class="modal-tip">Hermes Agent <b>没有 Web 面板</b>，所以不需要域名、也不占 80/443 端口。
-装完通过 <code>hermes</code> 命令行使用；面板会额外注册一个 <code>hermes-gateway</code> 服务，
-用来接 Telegram / Discord 等消息平台。<b>它需要你自己配模型 API key 才能真正跑起来</b>，
-安装步骤会打印具体命令。</div>`:''}
- ${project==='dockge'?`<div class="form-group"><label>Dockge Apps 宿主机端口（可选）</label>
+装完通过 <code>hermes</code> 命令行使用；网关 systemd 服务由上游自己的
+<code>hermes gateway install --system</code> 生成，所以之后 <code>hermes gateway status</code> 能正常管理它。
+<b>它需要你自己配模型 API key 才能真正接上消息平台</b>，安装步骤会打印具体命令。</div>`:''}
+    ${project==='dockge'?`<div class="form-group"><label>Dockge Apps 宿主机端口（可选）</label>
 <input name="dockge_port" type="number" min="1024" max="65535" placeholder="留空自动随机分配 20000–59999"/>
 <p class="helptext">可自定义 1024–65535，不能与 VPS SSH 端口冲突；容器内部端口保持 5001。</p></div>
 <div class="modal-tip">安装完成后默认显示服务器公网 IP + 实际端口的管理地址。公网 HTTP 与 Docker 管理权限的安全注意事项将在部署审批页面说明。</div>
@@ -1336,8 +1333,6 @@ function chooseHost(project,selectedHostId=null){
     request.confirm_public=true;
   }
   if(project==='hermes-agent'){
-    const dir=String(fd.get('installdir')||'').trim();
-    if(dir){if(!dir.startsWith('/')||dir.includes('..')){toast('安装目录必须是绝对路径，且不能包含 ..',true);return;}request.installdir=dir;}
     // 默认跳过浏览器/Computer Use —— 依赖太重, 小内存 VPS 装不下。
     // 复选框是「跳过」, 所以没勾 = 要装。
     request.skip_browser=fd.get('skip_browser')==='on';

@@ -166,6 +166,9 @@ class NewJob(BaseModel):
     domain: str | None = Field(default=None, max_length=253)
     docroot: str | None = Field(default=None, max_length=128)
     skip_ssl: bool = False
+    # Hermes Agent: 跳过浏览器与 Computer Use 组件 (依赖很重, 小内存 VPS 建议跳过)
+    # None = 没填 —— 其它项目出现这个字段要当参数错误拒绝, 所以不能用 bool 默认值
+    skip_browser: bool | None = None
 
 
 class Approval(BaseModel):
@@ -906,6 +909,12 @@ def create_deployment_plan(body: NewJob, *, expected_host: dict | None = None):
                     existing["service"] != "active" or existing["access_mode"] != "local"):
                 raise HTTPException(status_code=409, detail="只有已运行、安装记录可验证且仍本机监听的 3X-UI 才能直接继续 HTTPS；不会覆盖未知配置")
             options = {"panel_port": existing["port"], **tls_options(host)}
+    elif body.project == "hermes-agent":
+        if body.panel_port is not None or body.access_mode or body.source_job_id:
+            raise HTTPException(status_code=422, detail="Hermes Agent 不支持面板端口 / 证书模式 / 升级任务参数")
+        if body.domain or body.docroot or body.skip_ssl:
+            raise HTTPException(status_code=422, detail="Hermes Agent 没有网站，不需要域名 / 安装目录 / 跳过证书参数")
+        options = {"skip_browser": True if body.skip_browser is None else bool(body.skip_browser)}
     elif body.project in {"logistics-quote", "music-unlock"}:
         if body.panel_port is not None or body.access_mode or body.source_job_id:
             raise HTTPException(status_code=422, detail="此项目不支持面板端口 / 证书模式 / 升级任务参数")
@@ -920,6 +929,8 @@ def create_deployment_plan(body: NewJob, *, expected_host: dict | None = None):
         raise HTTPException(status_code=422, detail="此项目不支持 HTTPS 部署参数")
     elif body.domain or body.docroot or body.skip_ssl:
         raise HTTPException(status_code=422, detail="此项目不支持域名 / 安装目录 / 跳过证书参数")
+    elif body.skip_browser is not None:
+        raise HTTPException(status_code=422, detail="此项目不支持跳过浏览器组件参数")
     try:
         plan = build_plan(body.project, host["facts"], options)
     except (ValueError, TypeError, KeyError) as exc:
