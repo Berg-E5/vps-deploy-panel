@@ -80,7 +80,13 @@ jobs:
           $appDir = Join-Path $env:RUNNER_TEMP 'vpsdeploy-test'
           $python = Join-Path $appDir 'runtime\python\python.exe'
           if (-not (Test-Path $python)) { throw 'bundled runtime missing after install' }
-          & $python -c 'import fastapi, uvicorn, pydantic, httpx, paramiko, keyring; print("deps ok")'
+          # 依赖校验写成文件再跑: PowerShell 会把 -c 里的双引号吃掉。
+          # 用行数组而不是 here-string —— here-string 的结束标记必须顶格,
+          # 放进 YAML 块标量里会把块截断。
+          $verify = Join-Path $env:RUNNER_TEMP 'verify_deps.py'
+          @('import fastapi, uvicorn, pydantic, httpx, paramiko, keyring', 'print("deps ok")') |
+              Set-Content -Path $verify -Encoding UTF8
+          & $python $verify
           if ($LASTEXITCODE -ne 0) { throw 'dependency import failed after install' }
           & (Join-Path $appDir 'PanelState.ps1') -Status
           # 卸载, 确认不留残余
