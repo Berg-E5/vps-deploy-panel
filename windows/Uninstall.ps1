@@ -10,7 +10,14 @@ $ErrorActionPreference = 'SilentlyContinue'
 
 $taskName = 'VPSDeployPanel'
 $appDir = (Resolve-Path $PSScriptRoot).Path
+
+# 面板可能因端口冲突改用过别的端口, 端口写在用户数据目录里
 $port = 8787
+$portFile = Join-Path $env:LOCALAPPDATA 'VPSDeployPanel\port'
+if (Test-Path $portFile) {
+    $recorded = (Get-Content $portFile -Raw -ErrorAction SilentlyContinue).Trim()
+    if ($recorded -match '^\d+$') { $port = [int]$recorded }
+}
 
 function Write-Note([string]$message) {
     Write-Host "[VPS Deploy Panel] $message"
@@ -66,13 +73,40 @@ if ($targets.Count -gt 0) {
     Write-Note "已停止 $($targets.Count) 个面板进程。"
 }
 
-# ---- 4. 清掉运行时生成的缓存 ----
+# ---- 4. 等被占用的文件真正释放 ----
+# 面板进程刚被 Stop-Process 掉, 但 Windows 的 DLL 句柄可能还没回收,
+# 卸载器随后删文件会失败, 留下一堆 runtime DLL 残余。等句柄释放。
+for ($i = 0; $i -lt 30; $i++) {
+    $locked = Get-ChildItem -Path $appDir -Recurse -File -ErrorAction SilentlyContinue |
+        Where-Object {
+            try {
+                $s = [System.IO.File]::Open($_.FullName, 'Open', 'Read', 'None')
+                $s.Close()
+                $false
+            } catch { $true }
+        }
+    if (-not $locked) { break }
+    if ($i -eq 0) { Write-Note '等待文件句柄释放...' }
+    Start-Sleep -Milliseconds 500
+}
+
+# ---- 5. 清掉运行时生成的缓存 ----
 # 安装器只知道自己装过的文件; 面板跑起来后 Python 会生成 __pycache__,
 # 卸载器不会删它们, 结果留下一个空壳目录。顺手清掉, 装完即净。
 Get-ChildItem -Path $appDir -Directory -Filter '__pycache__' -Recurse -ErrorAction SilentlyContinue |
     ForEach-Object { Remove-Item $_.FullName -Recurse -Force -ErrorAction SilentlyContinue }
 Get-ChildItem -Path $appDir -Directory -Filter '*.dist-info' -Recurse -ErrorAction SilentlyContinue |
     ForEach-Object { Remove-Item $_.FullName -Recurse -Force -ErrorAction SilentlyContinue }
+# 仍然删不掉的文件 (被别的程序占着) 先移走, 让卸载器能删掉目录本身
+Get-ChildItem -Path $appDir -Recurse -File -ErrorAction SilentlyContinue |
+    ForEach-Object {
+        Remove-Item $_.FullName -Force -ErrorAction SilentlyContinue
+        if (Test-Path $_.FullName) {
+            try {
+                Move-Item $_.FullName (Join-Path $env:TEMP ("vpsdeploy-stale-" + [guid]::NewGuid().ToString('N') + $_.Name)) -Force -ErrorAction SilentlyContinue
+            } catch { }
+        }
+    }
 # 空目录也一并删掉
 for ($i = 0; $i -lt 5; $i++) {
     $left = Get-ChildItem -Path $appDir -Directory -Recurse -ErrorAction SilentlyContinue |
@@ -84,5 +118,15 @@ for ($i = 0; $i -lt 5; $i++) {
         }
     }
 }
+
+# ---- 6. 删掉安装根目录 ----
+# 卸载器自己就装在这个目录里, 运行时删不掉它;
+# 卸载器退出后 Inno 再删一次, 但那时目录已经空了, 仍会留下一个空壳。
+# 所以这里只能保证内容清干净 —— 根目录由 Inno 的收尾处理。
+try {
+    if (-not (Get-ChildItem -Path $appDir -Force -ErrorAction SilentlyContinue)) {
+        Remove-Item $appDir -Force -Recurse -ErrorAction SilentlyContinue
+    }
+} catch { }
 
 exit 0
