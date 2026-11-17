@@ -128,7 +128,7 @@ Windows 上 `core.autocrlf=true` 时工作区是 CRLF、索引里是 LF，
 - 装到 `%LOCALAPPDATA%\Programs\VPS Deploy Panel`，**不需要管理员权限**
 - 开始菜单和桌面都有快捷方式，双击就启动面板并打开浏览器
 - 勾选「登录时自动启动」会登记一个计划任务，开机后自动可用
-- 面板只监听 `127.0.0.1:8787`，不对外网开放
+- 面板只监听 `127.0.0.1:8787`，不对外网开放；端口被占时自动改用后面的空闲端口，实际端口写在 `%LOCALAPPDATA%\VPSDeployPanel\port`
 - 卸载走「设置 → 应用 → VPS Deploy Panel」，会停掉后台进程并移除计划任务
 
 数据、数据库和日志放在 `%LOCALAPPDATA%\VPSDeployPanel`，**不在安装目录里** —— 所以覆盖升级不会丢你的服务器配置和历史任务，重装后直接接着用。

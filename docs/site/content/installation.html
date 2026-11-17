@@ -8,7 +8,7 @@
   <li>勾选「登录时自动启动」会登记一个计划任务，登录系统后面板自动可用。</li>
   <li>卸载：设置 → 应用 → VPS Deploy Panel。会停掉后台进程并移除计划任务。</li>
 </ul>
-<p>面板只监听 <code>127.0.0.1:8787</code>，不对外网开放。</p>
+<p>面板只监听 <code>127.0.0.1:8787</code>，不对外网开放。如果这个端口已被别的程序占用，面板会自动改用后面的空闲端口，实际端口写在 <code>%LOCALAPPDATA%\VPSDeployPanel\port</code>，日志里也有记录。</p>
 <div class="callout"><strong>数据不在安装目录</strong><p>服务器配置、任务记录、日志和本机令牌都放在 <code>%LOCALAPPDATA%\VPSDeployPanel</code>。覆盖升级不会丢数据；卸载默认保留这份数据，重新安装后直接接着用。</p></div>
 <h2 id="requirements">方式二：从源码运行（要改代码的人）</h2>
 <ul>
