@@ -80,6 +80,7 @@ Source: "build\PanelState.ps1"; DestDir: "{app}"; Flags: ignoreversion
 Source: "build\Uninstall.ps1"; DestDir: "{app}"; Flags: ignoreversion
 ; 说明与许可
 Source: "build\requirements.txt"; DestDir: "{app}"; Flags: ignoreversion
+Source: "build\requirements-win.lock"; DestDir: "{app}"; Flags: ignoreversion
 Source: "build\LICENSE"; DestDir: "{app}"; Flags: ignoreversion
 Source: "build\README.md"; DestDir: "{app}"; DestName: "安装说明.md"; Flags: ignoreversion
 

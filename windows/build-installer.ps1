@@ -95,10 +95,12 @@ $pythonExe = Join-Path $pythonRoot 'python\python.exe'
 if (-not (Test-Path $pythonExe)) { throw "运行时里没有 python.exe: $pythonExe" }
 
 # ---------------------------------------------------------------- 2. 依赖
-Say '安装 Python 依赖 (预编译 wheel) ...'
+Say '安装 Python 依赖 (预编译 wheel, 锁定版本 + SHA-256) ...'
+# 用锁定表而不是 requirements.txt: 安装包要可复现,
+# 上游一旦发坏版本, 版本范围会让所有新下载的安装包一起坏掉。
 & $pythonExe -m pip install --quiet --disable-pip-version-check --no-warn-script-location `
-    --only-binary=:all: `
-    -r (Join-Path $root 'requirements.txt')
+    --only-binary=:all: --require-hashes `
+    -r (Join-Path $root 'windows\requirements-win.lock')
 if ($LASTEXITCODE -ne 0) { throw '依赖安装失败' }
 
 # 用文件传参, 避免 PowerShell 把 -c 里的引号吃掉 (中文提示会变成变量名)
@@ -136,6 +138,7 @@ Copy-Item -Path (Join-Path $root 'windows\launcher.pyw') -Destination $stage -Fo
 Copy-Item -Path (Join-Path $root 'windows\PanelState.ps1') -Destination $stage -Force
 Copy-Item -Path (Join-Path $root 'windows\Uninstall.ps1') -Destination $stage -Force
 Copy-Item -Path (Join-Path $root 'requirements.txt') -Destination $stage -Force
+Copy-Item -Path (Join-Path $root 'windows\requirements-win.lock') -Destination $stage -Force
 Copy-Item -Path (Join-Path $root 'LICENSE') -Destination $stage -Force
 Copy-Item -Path (Join-Path $root 'README.md') -Destination $stage -Force
 
