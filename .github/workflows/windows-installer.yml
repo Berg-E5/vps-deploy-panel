@@ -38,7 +38,7 @@ jobs:
           }
           if (-not $iscc) {
             choco install innosetup --no-progress --yes
-            # choco 装的编译器未必立刻出现在当前会话的 PATH 里, 按常见路径再找一遍
+            # choco may install it outside the current session PATH; search the usual locations
             $iscc = Get-Command ISCC.exe -ErrorAction SilentlyContinue
             if (-not $iscc) {
                 $iscc = @(
@@ -49,8 +49,8 @@ jobs:
             }
             if (-not $iscc) { throw 'Inno Setup still unavailable after install' }
           }
-          # 不要用 "ISCC.exe /?" 探测版本: 它把用法写到 stderr,
-          # 在 ErrorActionPreference=Stop 下会被当成终止性错误。
+          # Do not probe the version with "ISCC.exe /?": it writes usage to stderr,
+          # which ErrorActionPreference=Stop turns into a terminating error.
           Write-Host "Inno Setup: $($iscc.Source)"
 
       - name: Build Windows installer
@@ -74,22 +74,22 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           $setup = (Get-ChildItem -Path .\dist -Filter '*Setup.exe' | Select-Object -First 1).FullName
-          # 装到临时目录, 不碰用户已有的安装
+          # Install into a scratch directory; never touch an existing install
           & $setup /VERYSILENT /SUPPRESSMSGBOXES /NORESTART /SP- "/DIR=$env:RUNNER_TEMP\vpsdeploy-test" "/TASKS=autostart"
           Start-Sleep -Seconds 8
           $appDir = Join-Path $env:RUNNER_TEMP 'vpsdeploy-test'
           $python = Join-Path $appDir 'runtime\python\python.exe'
           if (-not (Test-Path $python)) { throw 'bundled runtime missing after install' }
-          # 依赖校验写成文件再跑: PowerShell 会把 -c 里的双引号吃掉。
-          # 用行数组而不是 here-string —— here-string 的结束标记必须顶格,
-          # 放进 YAML 块标量里会把块截断。
+          # Verify dependencies via a file: PowerShell strips the quotes inside -c.
+          # Use a line array, not a here-string: a here-string terminator must start
+          # at column 0, which truncates the YAML block scalar.
           $verify = Join-Path $env:RUNNER_TEMP 'verify_deps.py'
           @('import fastapi, uvicorn, pydantic, httpx, paramiko, keyring', 'print("deps ok")') |
               Set-Content -Path $verify -Encoding UTF8
           & $python $verify
           if ($LASTEXITCODE -ne 0) { throw 'dependency import failed after install' }
           & (Join-Path $appDir 'PanelState.ps1') -Status
-          # 卸载, 确认不留残余
+          # Uninstall, then confirm nothing is left behind
           $uninstaller = Get-ChildItem -Path $appDir -Filter 'unins*.exe' | Select-Object -First 1
           if (-not $uninstaller) { throw 'uninstaller missing' }
           & $uninstaller.FullName /VERYSILENT /SUPPRESSMSGBOXES /NORESTART
@@ -114,22 +114,21 @@ jobs:
           $ErrorActionPreference = 'Stop'
           $setup = Get-ChildItem -Path .\dist -Filter '*Setup.exe' | Select-Object -First 1
           $tag = $env:GITHUB_REF_NAME
-          # 已有同名 release 就补资产, 避免重复发布失败
+          # If the release already exists, replace the asset instead of failing.
+          # gh writes to stderr when the release is missing, and with
+          # ErrorActionPreference=Stop that would be a terminating error, so
+          # relax it for this call and rely on the exit code instead.
+          $ErrorActionPreference = 'Continue'
           $existing = gh release view $tag --repo $env:GITHUB_REPOSITORY --json tagName 2>$null
-          if ($existing) {
+          $found = ($LASTEXITCODE -eq 0) -and [bool]$existing
+          $ErrorActionPreference = 'Stop'
+          if ($found) {
             gh release upload $tag $setup.FullName --repo $env:GITHUB_REPOSITORY --clobber
           } else {
-            # 发布说明写成文件: here-string 的结束标记必须顶格,
-            # 放进 YAML 块标量里会把块截断
+            # Release notes come from a repo file: a here-string terminator must start
+            # at column 0, which truncates the YAML block scalar.
             $notesFile = Join-Path $env:RUNNER_TEMP 'release-notes.md'
-            @(
-              'Windows 安装包 (VPS Deploy Panel)',
-              '',
-              '- 自带 Python 运行时与全部依赖, 目标机器不需要预先装 Python 或 Git',
-              '- 装到当前用户目录, 不需要管理员权限',
-              '- 可选勾选「登录时自动启动」',
-              '- 面板只监听 127.0.0.1:8787'
-            ) | Set-Content -Path $notesFile -Encoding UTF8
-            gh release create $tag $setup.FullName --repo $env:GITHUB_REPOSITORY --title "VPS Deploy Panel $tag (Windows 安装包)" --notes-file $notesFile
+            Copy-Item -Path '.\windows\RELEASE-NOTES.md' -Destination $notesFile -Force
+            gh release create $tag $setup.FullName --repo $env:GITHUB_REPOSITORY --title "VPS Deploy Panel $tag (Windows Setup)" --notes-file $notesFile
           }
           Write-Host "release published: $tag"

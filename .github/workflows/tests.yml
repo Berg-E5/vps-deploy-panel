@@ -58,7 +58,7 @@ jobs:
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
-          # 安装包定义: 关键约束不能被改坏
+          # Installer definition: these constraints must not be broken
           $iss = Join-Path $env:GITHUB_WORKSPACE 'windows\installer.iss'
           $content = [System.IO.File]::ReadAllText($iss)
           foreach ($required in @(
@@ -70,7 +70,7 @@ jobs:
           )) {
             if ($content -notlike "*$required*") { throw "installer.iss missing: $required" }
           }
-          # 图标生成器必须只用标准库 (CI 不保证有 Pillow)
+          # The icon generator must use only the standard library (no Pillow in CI)
           $icon = [System.IO.File]::ReadAllText((Join-Path $env:GITHUB_WORKSPACE 'windows\make-icon.py'))
           if ($icon -match '(?m)^\s*(import|from)\s+PIL') { throw 'make-icon.py must not depend on PIL' }
           python (Join-Path $env:GITHUB_WORKSPACE 'windows\make-icon.py') (Join-Path $env:RUNNER_TEMP 'icon.ico')
