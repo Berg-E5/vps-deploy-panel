@@ -53,12 +53,24 @@ def _ensure_env() -> None:
 
 
 def _port_is_free(port: int) -> bool:
-    """端口是否可用。绑一下再松开, 比查进程表可靠。"""
+    """端口是否可用。绑一下再松开, 比查进程表可靠。
+
+    注意: 绝对不要设 SO_REUSEADDR。Windows 上它允许另一个进程强行
+    绑定同一个端口, 于是探测会"成功", 但真正 listen 时端口被别人占着,
+    面板起来却不服务任何请求 —— 而 pythonw 没有控制台, 用户只看到
+    "双击了没反应"。宁可多试一个端口。
+    """
     import socket
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
-        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        if hasattr(socket, "SO_EXCLUSIVEADDRUSE"):
+            # 独占绑定: 别人在用就一定失败
+            try:
+                sock.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
+            except OSError:
+                pass
         try:
             sock.bind(("127.0.0.1", port))
+            sock.listen(1)
         except OSError:
             return False
     return True
