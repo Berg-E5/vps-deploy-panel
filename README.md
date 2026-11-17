@@ -118,7 +118,24 @@ Windows 上 `core.autocrlf=true` 时工作区是 CRLF、索引里是 LF，
 - **签发前的地址校验**：IPv6 签发前会确认目标地址确实分配给这台 VPS；用域名的话要求它的全部 AAAA 记录指向当前 IPv6。Certbot 走 IPv6 的 TCP 80 做 HTTP-01 挑战，签发后校验证书链、IPv6 TLS 监听和本机公网连接。IP 证书用独立 Certbot 每四小时检查续期，域名用系统 Certbot 定时器。
 - **上线前还是要自己验收**：UFW 必须开 IPv6（活跃时改 `/etc/default/ufw` 里的 `IPV6=yes`），云厂商 IPv6 安全组要单独放行 TCP 80 和管理端口并限制来源。本机 curl 通了不等于外网能通。IPv6 的 ACME 流程目前只有模拟测试，**还没在真实 IPv6 VPS + Let's Encrypt 生产环境里跑过**，建议先拿可重装的测试机试。IPv4 流程不受影响。
 
-## Windows 快速开始（推荐）
+## Windows 快速开始
+
+### 方式一：安装包（推荐给普通用户）
+
+下载 `VPSDeployPanel-<版本>-Setup.exe` 双击安装即可，**不需要预先装 Python 或 Git**：
+
+- 安装包自带 Python 运行时和全部依赖，装完约 110 MB
+- 装到 `%LOCALAPPDATA%\Programs\VPS Deploy Panel`，**不需要管理员权限**
+- 开始菜单和桌面都有快捷方式，双击就启动面板并打开浏览器
+- 勾选「登录时自动启动」会登记一个计划任务，开机后自动可用
+- 面板只监听 `127.0.0.1:8787`，不对外网开放
+- 卸载走「设置 → 应用 → VPS Deploy Panel」，会停掉后台进程并移除计划任务
+
+数据、数据库和日志放在 `%LOCALAPPDATA%\VPSDeployPanel`，**不在安装目录里** —— 所以覆盖升级不会丢你的服务器配置和历史任务，重装后直接接着用。
+
+安装包由 `windows/build-installer.ps1` 构建：自带 Python 来自 python-build-standalone，**版本和 SHA-256 都钉死**在脚本里，下载后先校验再解压。
+
+### 方式二：从源码运行（给要改代码的人）
 
 先装 [Git for Windows](https://git-scm.com/downloads/win) 和 [Python 3.12+](https://www.python.org/downloads/windows/)（要带 `py` 启动器）。
 
@@ -133,6 +150,8 @@ cd vps-deploy-panel
 启动后浏览器访问 **http://127.0.0.1:8787**。Windows 本机模式首次启动会自动登录。
 
 **以后启动或更新：** 双击项目文件夹里的 `QuickStart-VPSDeployPanel.bat`。面板已经在跑就直接打开网页；停过之后再双击会先检查更新、备份本地数据，再后台启动。想看终端输出或者用 `Ctrl+C` 停，就单独跑 `Start-VPSDeployPanel.bat`。
+
+> 源码模式下的本机数据在项目目录的 `.env` 和 `data\` 里；安装包模式的数据在 `%LOCALAPPDATA%\VPSDeployPanel`。两者不通用，迁移时直接复制数据库文件即可。
 
 ## 用 ChatGPT 订阅接 Codex（可选）
 

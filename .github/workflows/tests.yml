@@ -38,7 +38,7 @@ jobs:
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
-          foreach ($relativePath in @('scripts/Start-Windows.ps1', 'scripts/Update-Windows.ps1', 'scripts/QuickStart-Windows.ps1', 'scripts/Enable-Codex-Windows.ps1')) {
+          foreach ($relativePath in @('scripts/Start-Windows.ps1', 'scripts/Update-Windows.ps1', 'scripts/QuickStart-Windows.ps1', 'scripts/Enable-Codex-Windows.ps1', 'windows/PanelState.ps1', 'windows/Uninstall.ps1', 'windows/build-installer.ps1')) {
             $path = Join-Path $env:GITHUB_WORKSPACE ($relativePath -replace '/', '\')
             $content = [System.IO.File]::ReadAllBytes($path)
             if ($content.Length -lt 3 -or $content[0] -ne 239 -or $content[1] -ne 187 -or $content[2] -ne 191) {
@@ -52,3 +52,28 @@ jobs:
             }
             Write-Host "$relativePath parsed successfully."
           }
+
+      - name: Validate Windows installer definition and icon generator
+        if: runner.os == 'Windows'
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          # 安装包定义: 关键约束不能被改坏
+          $iss = Join-Path $env:GITHUB_WORKSPACE 'windows\installer.iss'
+          $content = [System.IO.File]::ReadAllText($iss)
+          foreach ($required in @(
+            'PrivilegesRequired=lowest',
+            'DefaultDirName={localappdata}\Programs',
+            'OutputBaseFilename=VPSDeployPanel-',
+            'UninstallRun',
+            'UninstallDisplayIcon'
+          )) {
+            if ($content -notlike "*$required*") { throw "installer.iss missing: $required" }
+          }
+          # 图标生成器必须只用标准库 (CI 不保证有 Pillow)
+          $icon = [System.IO.File]::ReadAllText((Join-Path $env:GITHUB_WORKSPACE 'windows\make-icon.py'))
+          if ($icon -match '(?m)^\s*(import|from)\s+PIL') { throw 'make-icon.py must not depend on PIL' }
+          python (Join-Path $env:GITHUB_WORKSPACE 'windows\make-icon.py') (Join-Path $env:RUNNER_TEMP 'icon.ico')
+          if ($LASTEXITCODE -ne 0) { throw 'icon generation failed' }
+          if (-not (Test-Path (Join-Path $env:RUNNER_TEMP 'icon.ico'))) { throw 'icon.ico not produced' }
+          Write-Host 'installer definition and icon generator validated.'

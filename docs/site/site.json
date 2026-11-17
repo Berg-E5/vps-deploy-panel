@@ -14,7 +14,7 @@
     {
      "id": "installation",
      "title": "安装与更新",
-     "description": "Windows 一条命令启动，更新时保留服务器与任务数据。"
+     "description": "Windows 安装包或一条命令启动，更新时保留服务器与任务数据。"
     },
     {
      "id": "quick-start",

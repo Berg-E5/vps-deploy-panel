@@ -1,6 +1,7 @@
 # shell 脚本在 Linux 上跑, 必须是 LF
 *.sh text eol=lf
 *.py text eol=lf
+*.pyw text eol=lf
 *.js text eol=lf
 *.yml text eol=lf
 *.yaml text eol=lf
