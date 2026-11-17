@@ -74,9 +74,15 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           $setup = (Get-ChildItem -Path .\dist -Filter '*Setup.exe' | Select-Object -First 1).FullName
-          # Install into a scratch directory; never touch an existing install
-          & $setup /VERYSILENT /SUPPRESSMSGBOXES /NORESTART /SP- "/DIR=$env:RUNNER_TEMP\vpsdeploy-test" "/TASKS=autostart"
-          Start-Sleep -Seconds 8
+          # Install into a scratch directory; never touch an existing install.
+          # Start-Process -Wait matters: Inno Setup returns before all files are
+          # copied, so checking right after the call can see a half-extracted
+          # runtime and fail with a bogus "No module named 'urllib'".
+          $process = Start-Process -FilePath $setup -ArgumentList @(
+            '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/SP-',
+            "/DIR=$env:RUNNER_TEMP\vpsdeploy-test", '/TASKS=autostart'
+          ) -Wait -PassThru
+          if ($process.ExitCode -ne 0) { throw "installer exit code $($process.ExitCode)" }
           $appDir = Join-Path $env:RUNNER_TEMP 'vpsdeploy-test'
           $python = Join-Path $appDir 'runtime\python\python.exe'
           if (-not (Test-Path $python)) { throw 'bundled runtime missing after install' }
@@ -92,8 +98,12 @@ jobs:
           # Uninstall, then confirm nothing is left behind
           $uninstaller = Get-ChildItem -Path $appDir -Filter 'unins*.exe' | Select-Object -First 1
           if (-not $uninstaller) { throw 'uninstaller missing' }
-          & $uninstaller.FullName /VERYSILENT /SUPPRESSMSGBOXES /NORESTART
-          Start-Sleep -Seconds 10
+          $uninstall = Start-Process -FilePath $uninstaller.FullName -ArgumentList @(
+            '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART'
+          ) -Wait -PassThru
+          if ($uninstall.ExitCode -ne 0) { throw "uninstaller exit code $($uninstall.ExitCode)" }
+          # Inno Setup can leave the directory behind for a moment after exit
+          for ($i = 0; $i -lt 20 -and (Test-Path $appDir); $i++) { Start-Sleep -Seconds 1 }
           if (Test-Path $appDir) { throw "uninstall left files behind: $appDir" }
           Write-Host 'install + uninstall round-trip ok.'
 

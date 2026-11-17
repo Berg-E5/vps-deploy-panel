@@ -1,4 +1,4 @@
-"""安装包启动器 —— 无控制台窗口运行面板并打开浏览器。
+r"""安装包启动器 —— 无控制台窗口运行面板并打开浏览器。
 
 由快捷方式调用: pythonw.exe launcher.pyw
 数据、日志、.env 都放在 %LOCALAPPDATA%\VPSDeployPanel, 升级覆盖安装不会丢。
