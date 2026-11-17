@@ -18,7 +18,8 @@ from .sui_https import https_steps as sui_https_steps
 from .dockge import VERSION as DOCKGE_VERSION, steps as dockge_steps, reconfigure_steps as dockge_reconfigure_steps, validate_port as dockge_validate_port
 from .docker_runtime import setup_mode as docker_setup_mode, extra_steps as docker_extra_steps
 from .hiddify import BLOCKERS as HIDDIFY_BLOCKERS, steps as hiddify_steps
-from .web_apps import (logistics_quote_steps, music_unlock_steps,
+from .web_apps import (HERMES_AGENT_COMMIT, hermes_agent_steps,
+                       logistics_quote_steps, music_unlock_steps,
                        validate_docroot, validate_domain)
 
 CATALOG = {
@@ -102,6 +103,17 @@ CATALOG = {
         "summary": "在专用 Ubuntu VPS 上使用 Hiddify 官网一键安装，由 Hiddify 管理域名、端口和证书。",
         "requires": ["全新独立 Ubuntu 22.04 / 24.04 / 26.04 VPS", "root SSH 使用 TCP 22",
                      "x86_64 或 arm64，systemd", "80/443 无冲突", "约 1 GB 内存，根分区至少 5 GB 可用空间"],
+    },
+    "hermes-agent": {
+        "name": "Hermes Agent", "subtitle": "Nous Research 的自进化 AI 代理", "category": "Agent",
+        "icon": "spark", "deployment": "install", "risk": "中",
+        "docs": "https://github.com/NousResearch/hermes-agent",
+        "summary": "固定 commit 的公开源码；用官方 install.sh 装好 CLI 与依赖，"
+                   "并注册一个 hermes-gateway systemd 服务（接 Telegram / Discord 等消息平台）。"
+                   "它没有 Web 面板，装完通过命令行使用，因此不占 80/443、不需要域名。",
+        "requires": ["Debian/Ubuntu root VPS", "systemd", "git / curl / python3",
+                     "根分区可用空间 3GB 以上", "可用内存 1GB 以上",
+                     "未安装过 Hermes Agent"],
     },
     "logistics-quote": {
         "name": "物流报价系统", "subtitle": "多用户物流报价计算与改价后台", "category": "业务",
@@ -286,6 +298,18 @@ def compatibility(project: str, facts: dict[str, Any], options: dict | None = No
             issues.append("未检测到 Docker Compose v2")
         if facts.get("UDP_51820") != "free":
             issues.append("UDP 51820 端口已占用，或无法可靠检测端口占用状态")
+    if project == "hermes-agent":
+        # Hermes Agent 没有 Web 面板 —— 不需要 80/443，也不需要域名。
+        if os_id not in {"debian", "ubuntu"}:
+            issues.append("Hermes Agent 自动安装目前仅对 Debian/Ubuntu 开放")
+        if facts.get("SYSTEMD") != "yes":
+            issues.append("需要可用的 systemd（要装 hermes-gateway 服务）")
+        if facts.get("GIT_AVAILABLE") != "yes":
+            issues.append("缺少 git，无法获取固定 commit 的源码")
+        if facts.get("HERMES_PRESENT") == "yes":
+            issues.append("已存在 Hermes Agent 安装（安装目录、~/.hermes 或 hermes-gateway 服务），拒绝覆盖")
+        if int(facts.get("FREE_KB") or 0) < 3145728:
+            issues.append("根分区可用空间不足 3GB（依赖较重）")
     if project in {"logistics-quote", "music-unlock"}:
         if os_id not in {"debian", "ubuntu"}:
             issues.append(f"{'物流报价系统' if project == 'logistics-quote' else '音乐解锁工具'} 自动安装目前仅对 Debian/Ubuntu 开放")
@@ -419,6 +443,13 @@ def build_plan(project: str, facts: dict[str, Any], options: dict | None = None)
         if set(options) != {"panel_port"}:
             raise ValueError("HTTP 公网升级仅允许填写已核验的面板端口")
         options = {"panel_port": validate_port(options["panel_port"])}
+    elif project == "hermes-agent":
+        if set(options) - {"installdir", "skip_browser"}:
+            raise ValueError("Hermes Agent 部署选项包含未授权字段")
+        options = {
+            "installdir": validate_docroot(options.get("installdir", "")),
+            "skip_browser": bool(options.get("skip_browser", True)),
+        }
     elif project in {"s-ui", "s-ui-https"}:
         allowed = {"access_mode", "tls_identity", "certificate_type", "ssh_ipv4", "ssh_ipv6"}
         if project == "s-ui-https":
@@ -537,6 +568,9 @@ def build_plan(project: str, facts: dict[str, Any], options: dict | None = None)
         steps = music_unlock_steps(options["domain"],
                                    options.get("docroot", ""),
                                    options.get("skip_ssl", False))
+    elif runnable and project == "hermes-agent":
+        steps = hermes_agent_steps(options.get("installdir", ""),
+                                   options.get("skip_browser", True))
     else:
         steps = []
     plan = {
@@ -587,6 +621,17 @@ def build_plan(project: str, facts: dict[str, Any], options: dict | None = None)
             ],
             "3x-ui-https": ["公网 TCP 80 必须允许 Let’s Encrypt HTTP-01 验证（本机空闲不代表云安全组开放）；域名证书要求 DNS A 正确，公网 IP 证书使用 shortlived", "IP 证书有效期约 160 小时，必须保持 vpsdeploy-certbot-renew.timer 活跃（独立续期）；域名证书使用系统 certbot.timer；失败不开放公网面板",  "公网 HTTPS 管理面板属于高敏感服务，请启用强密码、双因素认证和云防火墙 IP 白名单"],
             "hysteria2": ["需要单独实现 TLS 证书、身份认证和服务器配置"],
+            "hermes-agent": [
+                f"从 GitHub 公开仓库的固定 commit 下载源码，校验 scripts/install.sh 的 SHA-256 后才执行；"
+                f"脚本自身再按 --commit {HERMES_AGENT_COMMIT[:12]} 固定安装的代码版本，不追 main 分支，不使用 curl | bash",
+                "安装会用 pm/uv 拉取 Python、Node 与依赖，需要访问 GitHub、PyPI 与 npm 源；"
+                "依赖较重，根分区至少留 3GB、可用内存至少 1GB",
+                "它没有 Web 面板：不占 80/443、不需要域名、不写 nginx 配置；装完通过命令行 hermes 使用",
+                "面板会注册一个 hermes-gateway systemd 服务（接 Telegram / Discord 等消息平台），"
+                "但它需要你自己配模型 API key 才能真正连上；没配之前服务会反复重启，这不是安装失败",
+                "跳过浏览器与 Computer Use 组件时，hermes 的浏览器类工具不可用；之后可自行补装",
+                "不会覆盖已存在的 Hermes Agent 安装（安装目录、~/.hermes 或 hermes-gateway 服务）",
+            ],
             "logistics-quote": [
                 "从 GitHub 公开仓库的固定 commit 下载源码，校验 deploy/install.sh 的 SHA-256 后才执行；不追 main 分支，不使用 curl | bash",
                 "安装会创建 systemd 服务、安装 nginx 并写入站点配置；域名需已解析到本机，否则证书签发会失败",

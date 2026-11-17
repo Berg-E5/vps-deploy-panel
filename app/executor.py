@@ -464,6 +464,7 @@ if ! command -v ss >/dev/null 2>&1; then echo TCP_80=unknown; elif ss -Hltn 'spo
 if ! command -v ss >/dev/null 2>&1; then echo TCP_443=unknown; elif ss -Hltn 'sport = :443' | grep -q .; then echo TCP_443=busy; else echo TCP_443=free; fi
 if [ -d /var/www/quote.byberg.store ] || [ -d /var/www/quote-app ] || (command -v systemctl >/dev/null 2>&1 && systemctl list-unit-files --no-legend quote-server.service 2>/dev/null | grep -q '^quote-server[.]service'); then echo QUOTE_PRESENT=yes; else echo QUOTE_PRESENT=no; fi
 if [ -d /var/www/music-unlock ] || [ -d /srv/music-unlock ]; then echo MUSIC_PRESENT=yes; else echo MUSIC_PRESENT=no; fi
+if [ -d /opt/hermes-agent ] || [ -d "$HOME/.hermes" ] || (command -v systemctl >/dev/null 2>&1 && systemctl list-unit-files --no-legend hermes-gateway.service 2>/dev/null | grep -q '^hermes-gateway[.]service'); then echo HERMES_PRESENT=yes; else echo HERMES_PRESENT=no; fi
 """ + ENV_CHECK
         if include_hiddify:
             if host["port"] == 22:
@@ -477,7 +478,7 @@ printf 'HIDDIFY_STATE=%s\\n' "$(hiddify_precheck)"
             if "=" in line:
                 k, v = line.split("=", 1)
                 if k in {"OS_ID", "OS_VERSION", "ARCH", "UID", "FREE_KB", "DOCKER", "COMPOSE", "SYSTEMD", "UDP_51820", "SS_AVAILABLE", "GIT_AVAILABLE", "DOCKER_SETUP", "XUI_PRESENT", "SUI_PRESENT", "DOCKGE_PRESENT", "DOCKGE_TCP_5001",
-                           "TCP_80", "TCP_443", "QUOTE_PRESENT", "MUSIC_PRESENT"}:
+                           "TCP_80", "TCP_443", "QUOTE_PRESENT", "MUSIC_PRESENT", "HERMES_PRESENT"}:
                     result[k] = v.strip()[:80]
                 elif include_hiddify and k == "HIDDIFY_STATE":
                     result[k] = v.strip()[:80]

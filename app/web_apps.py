@@ -26,6 +26,14 @@ LOGISTICS_QUOTE_INSTALL_SHA256 = (
     "c3a35fa0bc5577e345952ba79ebdede9eca1d55cc54aaf6dccc42d8942fca871"
 )
 
+HERMES_AGENT_REPO = "NousResearch/hermes-agent"
+HERMES_AGENT_COMMIT = "5b7b215a0d5656f52a1f2f88770cbadf89e6ad69"
+# scripts/install.sh 在该 commit 下的 SHA-256
+# (官方 install.sh 就是从仓库 main 分发的同一份, 但我们只认固定 commit 里的那份)
+HERMES_AGENT_INSTALL_SHA256 = (
+    "c73dad4dcf7c9ecadb98578e28cc763d23d7be3fa1b513545319038795493214"
+)
+
 MUSIC_UNLOCK_REPO = "Berg-E5/music-unlock"
 MUSIC_UNLOCK_COMMIT = "60ab3f2727adfb37d051ef74c500ed5bbd5cf83a"
 MUSIC_UNLOCK_INSTALL_SHA256 = (
@@ -217,6 +225,137 @@ echo "验收通过"
 echo
 echo "下一步: 打开 https://{domain}/ 用 admin 账号登录。"
 echo "注意: GitHub 源码安装是**空站** —— 需要在后台「整表导入」上传报价表才有价格。"
+""",
+        },
+    ]
+
+
+# ---------------------------------------------------------------- Hermes Agent
+
+
+def hermes_agent_steps(installdir: str = "", skip_browser: bool = True) -> list[dict]:
+    """Hermes Agent —— 固定 commit 装 CLI, 再装一个网关 systemd 服务。
+
+    和面板里另外两个自建项目不一样: Hermes Agent 没有 Web 面板,
+    所以**不需要域名、不需要 nginx、不占 80/443** —— 它是一个命令行
+    Agent, 装完通过 `hermes` 使用, 常驻服务是 `hermes gateway`
+    (接 Telegram / Discord 等消息平台)。
+
+    安装脚本用仓库里的 scripts/install.sh, 它自己会按 --commit 固定
+    版本 clone 并用 pm/uv 装依赖 —— 我们只负责把这份脚本本身也钉死。
+    """
+    installdir = validate_docroot(installdir) or "/opt/hermes-agent"
+    work = "/opt/vps-deploy/staging/hermes-agent"
+    skip_flags = " --skip-browser --skip-computer-use" if skip_browser else ""
+
+    return [
+        {
+            "label": "核对运行环境 (Debian/Ubuntu / systemd / 磁盘 / 内存)",
+            "timeout": 60,
+            "script": """set -eu
+test "$(id -u)" = 0
+. /etc/os-release
+case "${ID:-}" in debian|ubuntu) ;; *) echo "仅支持 Debian/Ubuntu" >&2; exit 1;; esac
+command -v systemctl >/dev/null || { echo "需要 systemd" >&2; exit 1; }
+command -v git >/dev/null || { echo "缺少 git" >&2; exit 1; }
+command -v curl >/dev/null || { echo "缺少 curl" >&2; exit 1; }
+command -v python3 >/dev/null || { echo "缺少 python3" >&2; exit 1; }
+# 已装过就拒绝覆盖 —— 装一半的目录比没装更难收拾
+if [ -e '/opt/hermes-agent' ] || [ -e '/root/.hermes' ]; then
+  echo "已存在 Hermes Agent 安装 (安装目录或 ~/.hermes), 拒绝覆盖" >&2
+  exit 1
+fi
+FREE_KB="$(df -Pk / | awk 'NR==2 { print $4 }')"
+test "$FREE_KB" -gt 3145728 || { echo "根分区可用空间不足 3GB" >&2; exit 1; }
+MEM_MB="$(awk '/MemTotal/ { print int($2/1024) }' /proc/meminfo)"
+test "${MEM_MB:-0}" -ge 1024 || { echo "可用内存不足 1GB" >&2; exit 1; }
+echo "环境核对通过"
+""",
+        },
+        {
+            "label": "安装系统依赖 (git / curl / python3 / 编译工具链)",
+            "timeout": 600,
+            "script": """set -eu
+export DEBIAN_FRONTEND=noninteractive
+apt-get update
+apt-get install -y --no-install-recommends \
+  git curl ca-certificates python3 python3-venv build-essential pkg-config
+git --version
+python3 -V
+""",
+        },
+        _download_step(
+            repo=HERMES_AGENT_REPO,
+            commit=HERMES_AGENT_COMMIT,
+            install_path="scripts/install.sh",
+            sha256=HERMES_AGENT_INSTALL_SHA256,
+            label=f"下载固定版本源码并校验 (commit {HERMES_AGENT_COMMIT[:12]})",
+            workdir=work,
+        ),
+        {
+            "label": "执行安装 (官方 install.sh, 固定 commit, 非交互)",
+            "timeout": 2400,
+            "script": f"""set -eu
+SRC="$(cat "{work}/srcpath")"
+# --commit 把安装的代码也钉死; --non-interactive 跳过需要输入的阶段
+bash "$SRC/scripts/install.sh" \
+  --commit {HERMES_AGENT_COMMIT} \
+  --dir '{installdir}' \
+  --non-interactive{skip_flags}
+""",
+        },
+        {
+            "label": "安装网关 systemd 服务 (hermes gateway)",
+            "timeout": 180,
+            "script": f"""set -eu
+HERMES_BIN="$(find '{installdir}' /root/.hermes -maxdepth 5 -type f -name hermes -perm -u+x 2>/dev/null | head -n 1)"
+test -n "$HERMES_BIN" || {{ echo "安装目录里找不到 hermes 可执行文件" >&2; exit 1; }}
+echo "hermes 可执行文件: $HERMES_BIN"
+cat > /etc/systemd/system/hermes-gateway.service <<EOF
+[Unit]
+Description=Hermes Agent Gateway
+Documentation=https://hermes-agent.nousresearch.com/docs/
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=$HERMES_BIN gateway
+Environment=HERMES_HOME=/root/.hermes
+WorkingDirectory=/root
+Restart=on-failure
+RestartSec=15
+
+[Install]
+WantedBy=multi-user.target
+EOF
+systemctl daemon-reload
+systemctl enable hermes-gateway.service
+systemctl is-enabled hermes-gateway.service
+""",
+        },
+        {
+            "label": "验收 (版本可执行 / 服务已启用)",
+            "timeout": 120,
+            "script": f"""set -eu
+HERMES_BIN="$(find '{installdir}' /root/.hermes -maxdepth 5 -type f -name hermes -perm -u+x 2>/dev/null | head -n 1)"
+test -n "$HERMES_BIN" || {{ echo "找不到 hermes 可执行文件" >&2; exit 1; }}
+"$HERMES_BIN" --version || {{ echo "hermes --version 执行失败" >&2; exit 1; }}
+# 单元必须已 enable —— 但不强制 active:
+# 网关要等用户配好模型 API key 才能真正连上消息平台, 没配之前它会退出重试,
+# 那不是安装失败。所以这里只校验「装好了、能跑、开机自启已就位」。
+systemctl is-enabled hermes-gateway.service >/dev/null || {{
+  echo "hermes-gateway 服务没有设置开机自启" >&2; exit 1; }}
+echo "验收通过"
+echo
+echo "安装目录: {installdir}"
+echo "可执行文件: $HERMES_BIN"
+echo
+echo "下一步 (需要你自己配):"
+echo "  1. 配置模型:  ssh 到服务器执行  hermes setup   (或 hermes model 选服务商)"
+echo "  2. 启动网关:  systemctl start hermes-gateway && systemctl status hermes-gateway"
+echo "  3. 直接对话:  ssh 到服务器执行  hermes   (终端界面)"
+echo "注意: 没配 API key 之前网关会反复重启, 这是正常的。"
 """,
         },
     ]
