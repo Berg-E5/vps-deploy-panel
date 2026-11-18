@@ -1937,6 +1937,34 @@ document.addEventListener('keydown',e=>{
 });
 el('#refresh').addEventListener('click',async e=>{const button=e.currentTarget;button.classList.add('is-loading');button.disabled=true;try{await loadAll();}finally{button.classList.remove('is-loading');button.disabled=false;}});
 el('#logout').addEventListener('click',logout);
+el('#check-update-btn').addEventListener('click',async e=>{
+  const btn=e.currentTarget;
+  btn.classList.add('is-loading');btn.disabled=true;
+  try{
+    const resp=await api('/update/check');
+    if(resp.error){
+      toast('检查更新失败: '+resp.error,true);
+    }else if(resp.has_update){
+      const confirm=window.confirm(`发现新版本 ${resp.version} (当前 ${resp.current})\n\n${resp.notes||''}\n\n是否现在下载并安装？`);
+      if(confirm){
+        btn.textContent='下载中...';
+        const install=await api('/update/install',{method:'POST',body:JSON.stringify({url:resp.url})});
+        if(install.ok){
+          toast('更新安装完成，应用即将重启');
+          setTimeout(()=>location.reload(),2000);
+        }else{
+          toast('安装失败: '+(install.error||'未知错误'),true);
+        }
+      }
+    }else{
+      toast('已是最新版 ('+resp.current+')');
+    }
+  }catch(err){
+    toast(err.message,true);
+  }finally{
+    btn.classList.remove('is-loading');btn.disabled=false;btn.textContent='检查更新';
+  }
+});
 el('#codex-command-form').addEventListener('submit',submitCodexCommand);
 el('#codex-prompt').addEventListener('keydown',e=>{
  if(e.key==='Enter'&&!e.shiftKey&&!e.isComposing&&e.keyCode!==229){

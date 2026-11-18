@@ -9,6 +9,7 @@ import time
 import re
 import ipaddress
 import secrets
+import urllib.request
 from pathlib import Path
 from typing import Literal
 
@@ -67,7 +68,7 @@ async def native_codex_lifespan(_application: FastAPI):
         stop_native_codex()
 
 
-app = FastAPI(title="VPS Deploy Panel", version="1.0.0",
+app = FastAPI(title="VPS Deploy Panel", version="1.0.1",
               lifespan=native_codex_lifespan)
 LOCAL_AUTO_LOGIN = env_flag("LOCAL_AUTO_LOGIN", "0")
 
@@ -262,7 +263,74 @@ def index():
 
 @app.get("/api/health")
 def health():
-    return {"ok": True, "version": "1.0.0", "security": "local-only"}
+    return {"ok": True, "version": "1.0.1", "security": "local-only"}
+
+
+@app.get("/api/update/check")
+def update_check():
+    """Windows 客户端自动更新检查"""
+    try:
+        req = urllib.request.Request(
+            "https://api.github.com/repos/Berg-E5/vps-deploy-panel/releases/latest",
+            headers={"User-Agent": "VPSDeployPanel-Updater"}
+        )
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            data = json.load(resp)
+        latest_version = data.get("tag_name", "").lstrip("v")
+        current_version = "1.0.1"
+        assets = data.get("assets", [])
+        setup_url = ""
+        for asset in assets:
+            if asset.get("name", "").endswith("-Setup.exe"):
+                setup_url = asset.get("browser_download_url", "")
+                break
+        has_update = _version_greater(latest_version, current_version)
+        return {
+            "has_update": has_update,
+            "version": latest_version,
+            "current": current_version,
+            "url": setup_url,
+            "notes": data.get("body", "")[:2000],
+        }
+    except Exception as exc:
+        return {"has_update": False, "error": str(exc)}
+
+
+def _version_greater(a: str, b: str) -> bool:
+    try:
+        a_parts = [int(x) for x in a.split(".")]
+        b_parts = [int(x) for x in b.split(".")]
+        max_len = max(len(a_parts), len(b_parts))
+        a_parts += [0] * (max_len - len(a_parts))
+        b_parts += [0] * (max_len - len(b_parts))
+        return a_parts > b_parts
+    except Exception:
+        return False
+
+
+@app.post("/api/update/install")
+def update_install(body: dict):
+    """下载并静默安装更新包"""
+    url = body.get("url", "")
+    if not url:
+        raise HTTPException(status_code=400, detail="缺少下载地址")
+    if not url.endswith("-Setup.exe"):
+        raise HTTPException(status_code=400, detail="只支持安装包更新")
+    try:
+        import tempfile
+        import subprocess
+        temp_dir = Path(tempfile.gettempdir())
+        installer_path = temp_dir / f"VPSDeployPanel-Update-{int(time.time())}.exe"
+        urllib.request.urlretrieve(url, installer_path)
+        result = subprocess.run(
+            [str(installer_path), "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/CLOSEAPPLICATIONS"],
+            timeout=300,
+            capture_output=True,
+        )
+        installer_path.unlink(missing_ok=True)
+        return {"ok": result.returncode == 0, "exit_code": result.returncode}
+    except Exception as exc:
+        return {"ok": False, "error": str(exc)}
 
 
 @app.get("/api/local-session")

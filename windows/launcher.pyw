@@ -11,12 +11,17 @@ import sys
 import threading
 import time
 import urllib.request
+import urllib.error
+import json
+import subprocess
 from pathlib import Path
 
 APP_DIR = Path(__file__).resolve().parent
 DATA_DIR = Path(os.environ.get("LOCALAPPDATA", str(APP_DIR))) / "VPSDeployPanel"
 LOG_DIR = DATA_DIR / "logs"
 PANEL_URL = "http://127.0.0.1:8787"
+GITHUB_REPO = "Berg-E5/vps-deploy-panel"
+GITHUB_API = f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest"
 
 
 def _log(message: str) -> None:
@@ -102,6 +107,67 @@ def _open_browser(base_url: str) -> None:
         except Exception:
             pass
         time.sleep(0.5)
+
+
+def check_for_updates() -> dict:
+    """查 GitHub Release，返回 {'has_update': bool, 'version': str, 'url': str, 'notes': str}"""
+    try:
+        req = urllib.request.Request(GITHUB_API, headers={"User-Agent": "VPSDeployPanel-Updater"})
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            data = json.load(resp)
+        latest_version = data.get("tag_name", "").lstrip("v")
+        current_version = "1.0.1"  # 与 main.py 保持一致，或从文件读取
+        assets = data.get("assets", [])
+        setup_url = ""
+        for asset in assets:
+            if asset.get("name", "").endswith("-Setup.exe"):
+                setup_url = asset.get("browser_download_url", "")
+                break
+        has_update = _version_greater(latest_version, current_version)
+        return {
+            "has_update": has_update,
+            "version": latest_version,
+            "current": current_version,
+            "url": setup_url,
+            "notes": data.get("body", "")[:2000],
+        }
+    except Exception as exc:
+        return {"has_update": False, "error": str(exc)}
+
+
+def _version_greater(a: str, b: str) -> bool:
+    """简单语义化版本比较：1.0.1 > 1.0.0"""
+    try:
+        a_parts = [int(x) for x in a.split(".")]
+        b_parts = [int(x) for x in b.split(".")]
+        # Pad to same length
+        max_len = max(len(a_parts), len(b_parts))
+        a_parts += [0] * (max_len - len(a_parts))
+        b_parts += [0] * (max_len - len(b_parts))
+        return a_parts > b_parts
+    except Exception:
+        return False
+
+
+def download_and_install_update(url: str) -> bool:
+    """下载新安装包并静默安装"""
+    try:
+        temp_dir = Path(os.environ.get("TEMP", "C:\\Temp"))
+        installer_path = temp_dir / f"VPSDeployPanel-Update-{int(time.time())}.exe"
+        _log(f"下载更新包: {url}")
+        urllib.request.urlretrieve(url, installer_path)
+        _log(f"下载完成，静默安装: {installer_path}")
+        # 静默安装，自动关闭运行中的应用
+        result = subprocess.run(
+            [str(installer_path), "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/CLOSEAPPLICATIONS"],
+            timeout=300,
+            capture_output=True,
+        )
+        installer_path.unlink(missing_ok=True)
+        return result.returncode == 0
+    except Exception as exc:
+        _log(f"更新失败: {exc}")
+        return False
 
 
 def main() -> int:
