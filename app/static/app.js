@@ -1267,6 +1267,12 @@ function chooseHost(project,selectedHostId=null){
 <div class="form-group"><label>安装目录（可选）</label>
 <input name="docroot" placeholder="留空使用默认目录" autocomplete="off"/>
 <p class="helptext">留空则使用项目默认目录。必须是绝对路径。</p></div>
+<div class="form-group"><label>访问方式</label>
+<select name="access_mode">
+  <option value="https">自动申请 SSL 证书（HTTPS，推荐）</option>
+  <option value="local">仅本机模式（通过 SSH 隧道访问，不申请证书）</option>
+</select>
+<p class="helptext">选择 HTTPS 时会自动申请 Let's Encrypt 证书并配置自动续期；本机模式下需自行使用 SSH 隧道或安全反代访问。</p></div>
 <div class="form-group"><label class="inline"><input type="checkbox" name="skip_ssl"/> 跳过 HTTPS 证书申请</label>
 <p class="helptext">只在 DNS 还没配好、或想先用 HTTP 验证时勾选。生产环境建议申请证书。</p></div>
 <div class="modal-tip">${project==='logistics-quote'?'从公开源码安装是<b>空站</b>：没有账号数据和报价表，装完要在后台「整表导入」上传报价表才能报价。':'纯静态站，解密全在浏览器里跑，文件不上传。'}</div>`:''}
@@ -1322,6 +1328,7 @@ function chooseHost(project,selectedHostId=null){
     request.domain=domain;
     const docroot=String(fd.get('docroot')||'').trim();
     if(docroot)request.docroot=docroot;
+    request.access_mode=String(fd.get('access_mode')||'https');
     request.skip_ssl=fd.get('skip_ssl')==='on';
   }
   if(project==='dockge'){

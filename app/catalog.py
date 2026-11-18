@@ -566,11 +566,19 @@ def build_plan(project: str, facts: dict[str, Any], options: dict | None = None)
     elif runnable and project == "logistics-quote":
         steps = logistics_quote_steps(options["domain"],
                                       options.get("docroot", ""),
-                                      options.get("skip_ssl", False))
+                                      options.get("skip_ssl", False),
+                                      options.get("access_mode", "https"),
+                                      options.get("tls_identity", ""),
+                                      options.get("ssh_ipv4"),
+                                      options.get("ssh_ipv6"))
     elif runnable and project == "music-unlock":
         steps = music_unlock_steps(options["domain"],
                                    options.get("docroot", ""),
-                                   options.get("skip_ssl", False))
+                                   options.get("skip_ssl", False),
+                                   options.get("access_mode", "https"),
+                                   options.get("tls_identity", ""),
+                                   options.get("ssh_ipv4"),
+                                   options.get("ssh_ipv6"))
     elif runnable and project == "hermes-agent":
         steps = hermes_agent_steps(options.get("skip_browser", True))
     else:

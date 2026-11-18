@@ -124,14 +124,48 @@ echo "$SRC" > "$WORK/srcpath"
 # ---------------------------------------------------------------- 物流报价
 
 
-def logistics_quote_steps(domain: str, docroot: str = "", skip_ssl: bool = False) -> list[dict]:
+# ---------------------------------------------------------------- 物流报价
+
+def _tls_preflight_script(domain: str, tls_identity: str, ssh_ipv4: str | None, ssh_ipv6: str | None) -> dict:
+    """TLS preflight checks: DNS resolution, certbot availability, ACME port 80."""
+    mode = "domain"
+    identity = tls_identity
+    return {
+        "label": "核对域名解析、Certbot 与 ACME 80 端口",
+        "timeout": 60,
+        "script": f"""set -eu
+test "$(id -u)" = 0
+command -v curl >/dev/null
+command -v getent >/dev/null
+# Public IPv4 egress
+public_ip="$(curl --proto '=https' --tlsv1.2 -4 -fsS --max-time 12 https://api.ipify.org)"
+case "$public_ip" in ""|*[!0-9.]* ) echo "无法识别公网 IPv4" >&2; exit 27;; esac
+if [ -n "{ssh_ipv4 or ''}" ]; then
+    test "$public_ip" = "{ssh_ipv4 or ''}" || {{
+        echo "VPS 出口 IP 与 SSH 绑定 IPv4 不符" >&2; exit 28;
+    }}
+fi
+if [ "{mode}" = "domain" ]; then
+    getent ahostsv4 "{identity}" | awk '{{print $1}}' | grep -Fxq "$public_ip" || {{
+        echo "域名 A 记录不指向本机公网 IPv4，请先配置 DNS" >&2; exit 29;
+    }}
+fi
+# ACME port 80 must be free for standalone/nginx challenge
+if ss -Hltn 'sport = :80' | grep -q .; then
+    echo "TCP 80 已被占用，无法进行 ACME 验证" >&2; exit 26
+fi
+echo "TLS 预检通过"
+""",
+    }
+
+def logistics_quote_steps(domain: str, docroot: str = "", skip_ssl: bool = False, access_mode: str = "https", tls_identity: str = "", ssh_ipv4: str | None = None, ssh_ipv6: str | None = None) -> list[dict]:
     """物流报价系统 —— systemd + nginx 反代 + 可选证书。"""
     domain = validate_domain(domain)
     docroot = validate_docroot(docroot) or "/var/www/quote.byberg.store"
     work = "/opt/vps-deploy/staging/logistics-quote"
     ssl_flag = "skip-ssl" if skip_ssl else ""
 
-    return [
+    steps = [
         {
             "label": "核对运行环境 (Node / Python / nginx / 端口 / 磁盘)",
             "timeout": 60,
@@ -142,7 +176,7 @@ case "${ID:-}" in debian|ubuntu) ;; *) echo "仅支持 Debian/Ubuntu" >&2; exit 
 command -v systemctl >/dev/null || { echo "需要 systemd" >&2; exit 1; }
 command -v ss >/dev/null || { echo "缺少 iproute2 (ss), 无法检测端口占用" >&2; exit 1; }
 command -v curl >/dev/null || { echo "缺少 curl" >&2; exit 1; }
-command -v node >/dev/null && node -v | grep -E 'v(1[89]|2[0-9])' >/dev/null || \\
+command -v node >/dev/null && node -v | grep -E 'v(1[89]|2[0-9])' >/dev/null || \
   echo "需要 Node.js 18 或更高版本 (后续步骤会安装)" >&2
 command -v python3 >/dev/null || echo "需要 python3 (整表导入用)" >&2
 command -v nginx >/dev/null || echo "需要 nginx (后续步骤会安装)" >&2
@@ -159,15 +193,16 @@ echo "环境核对通过"
 """,
         },
         {
-            "label": "安装缺失的系统依赖 (nginx / python3 / openpyxl / Node.js)",
+            "label": "安装缺失的系统依赖 (nginx / python3 / openpyxl / Node.js / certbot)",
             "timeout": 600,
             "script": """set -eu
 export DEBIAN_FRONTEND=noninteractive
 apt-get update
-apt-get install -y --no-install-recommends nginx python3 python3-pip ca-certificates curl
+apt-get install -y --no-install-recommends nginx python3 python3-pip ca-certificates curl certbot python3-certbot-nginx
 # openpyxl 只有「整表导入」需要, 装不上不影响站点运行
-python3 -m pip install --quiet --break-system-packages openpyxl 2>/dev/null || \\
-  python3 -m pip install --quiet openpyxl 2>/dev/null || \\
+python3 -m pip install --quiet --break-system-packages openpyxl 2>/dev/null || \
+  python3 -m pip install --quiet openpyxl 2>/dev/null || \
+  apt-get install -y python3-openpyxl 2>/dev/null || \
   echo "openpyxl 安装失败, 整表导入不可用 (其它功能正常)"
 # Node.js 18+ —— 后端零第三方依赖, 只要 node 本体
 if ! command -v node >/dev/null || ! node -v | grep -E 'v(1[89]|2[0-9])' >/dev/null; then
@@ -179,6 +214,7 @@ fi
 node -v
 python3 -V
 nginx -v
+certbot --version
 """,
         },
         _download_step(
@@ -189,46 +225,121 @@ nginx -v
             label=f"下载固定版本源码并校验 (commit {LOGISTICS_QUOTE_COMMIT[:12]})",
             workdir=work,
         ),
-        {
-            "label": f"执行安装 (systemd 单元 + nginx 反代{' + 证书' if not skip_ssl else ''})",
-            "timeout": 900,
-            "script": f"""set -eu
+    ]
+    
+    # Add TLS preflight if HTTPS mode
+    if access_mode == "https" and tls_identity:
+        steps.append(_tls_preflight_script(domain, tls_identity, ssh_ipv4, ssh_ipv6))
+    
+    steps.append({
+        "label": f"执行安装 (systemd 单元 + nginx 反代{' + 证书' if access_mode == 'https' and not skip_ssl else ''})",
+        "timeout": 900,
+        "script": f"""set -eu
 SRC="$(cat "{work}/srcpath")"
 bash "$SRC/deploy/install.sh" '{domain}' '{docroot}' '{ssl_flag}'
 """,
-        },
-        {
-            "label": "验收 (服务状态 / 本机 HTTP / nginx 配置)",
+    })
+    steps.append({
+            "label": "验收 (服务状态 / 本机 HTTP / nginx 配置 / HTTPS)",
             "timeout": 90,
             "script": f"""set -eu
-systemctl is-active --quiet quote-server.service || {{
-  echo "quote-server 没有启动" >&2; systemctl status quote-server --no-pager -n 20 >&2; exit 1; }}
-# 端口: 安装脚本会挑一个不冲突的端口并写进 data/port, 别写死 8792
-DOCROOT='{docroot}'
-PORT=8792
-if [ -f "$DOCROOT/data/port" ]; then PORT="$(cat "$DOCROOT/data/port")"; fi
-code="$(curl -s -o /dev/null -w '%{{http_code}}' --max-time 10 http://127.0.0.1:$PORT/)"
-test "$code" = "200" || {{ echo "本机 HTTP 返回 $code, 期望 200 (端口 $PORT)" >&2; exit 1; }}
-# 未登录时数据接口返回 401 —— 说明登录墙生效, 不是坏掉
-code="$(curl -s -o /dev/null -w '%{{http_code}}' --max-time 10 http://127.0.0.1:$PORT/api/data)"
-test "$code" = "401" || {{ echo "数据接口返回 $code, 期望 401 (登录墙)" >&2; exit 1; }}
-# nginx 必须真的在跑, 且 80 端口能响应。
-# 只看 nginx -t 是不够的: "装了但没启动" 时配置语法照样通过, 站点却是打不开的。
-systemctl is-active --quiet nginx || {{
-  echo "nginx 没有启动 —— 站点会 502" >&2
-  systemctl status nginx --no-pager -n 20 >&2
-  exit 1
-}}
-code="$(curl -s -o /dev/null -w '%{{http_code}}' --max-time 10 -H 'Host: {domain}' http://127.0.0.1/)"
-test "$code" = "200" || {{ echo "80 端口返回 $code, 期望 200" >&2; exit 1; }}
-echo "验收通过"
-echo
-echo "下一步: 打开 https://{domain}/ 用 admin 账号登录。"
-echo "注意: GitHub 源码安装是**空站** —— 需要在后台「整表导入」上传报价表才有价格。"
+    systemctl is-active --quiet quote-server.service || {{
+      echo "quote-server 没有启动" >&2; systemctl status quote-server --no-pager -n 20 >&2; exit 1; }}
+    # 端口: 安装脚本会挑一个不冲突的端口并写进 data/port, 别写死 8792
+    DOCROOT='{docroot}'
+    PORT=8792
+    if [ -f "$DOCROOT/data/port" ]; then PORT="$(cat "$DOCROOT/data/port")"; fi
+    code="$(curl -s -o /dev/null -w '%{{http_code}}' --max-time 10 http://127.0.0.1:$PORT/)"
+    test "$code" = "200" || {{ echo "本机 HTTP 返回 $code, 期望 200 (端口 $PORT)" >&2; exit 1; }}
+    # 未登录时数据接口返回 401 —— 说明登录墙生效, 不是坏掉
+    code="$(curl -s -o /dev/null -w '%{{http_code}}' --max-time 10 http://127.0.0.1:$PORT/api/data)"
+    test "$code" = "401" || {{ echo "数据接口返回 $code, 期望 401 (登录墙)" >&2; exit 1; }}
+    # nginx 必须真的在跑, 且 80 端口能响应。
+    # 只看 nginx -t 是不够的: "装了但没启动" 时配置语法照样通过, 站点却是打不开的。
+    systemctl is-active --quiet nginx || {{
+      echo "nginx 没有启动 —— 站点会 502" >&2
+      systemctl status nginx --no-pager -n 20 >&2
+      exit 1
+    }}
+    nginx -t
+    code="$(curl -s -o /dev/null -w '%{{http_code}}' --max-time 10 -H 'Host: {domain}' http://127.0.0.1/)"
+    test "$code" = "200" || {{ echo "80 端口返回 $code, 期望 200" >&2; exit 1; }}
+    """,
+        })
+    
+    # HTTPS verification step
+    if access_mode == "https" and not skip_ssl:
+        steps.append({
+            "label": "验收 HTTPS (证书有效性 / 443 端口 / 域名证书匹配)",
+            "timeout": 60,
+            "script": f"""set -eu
+# Check certbot renewal timer
+systemctl is-enabled certbot.timer >/dev/null || {{ echo "certbot.timer 未启用" >&2; exit 1; }}
+systemctl is-active certbot.timer >/dev/null || {{ echo "certbot.timer 未运行" >&2; exit 1; }}
+# Check certificate exists and is valid
+CERT="/etc/letsencrypt/live/{domain}/fullchain.pem"
+KEY="/etc/letsencrypt/live/{domain}/privkey.pem"
+test -s "$CERT" && test -s "$KEY" || {{ echo "证书文件不存在" >&2; exit 1; }}
+openssl x509 -in "$CERT" -noout -checkend 86400 >/dev/null || {{ echo "证书即将过期或已过期" >&2; exit 1; }}
+openssl x509 -in "$CERT" -noout -checkhost "{domain}" | grep -Fq 'does match' || {{ echo "证书域名不匹配" >&2; exit 1; }}
+# Check 443 port responds
+systemctl is-active --quiet nginx || {{ echo "nginx 未运行" >&2; exit 1; }}
+code="$(curl -s -o /dev/null -w '%{{http_code}}' --max-time 10 -H 'Host: {domain}' https://127.0.0.1/ 2>/dev/null || echo 000)"
+test "$code" = "200" || {{ echo "443 端口 HTTPS 返回 $code, 期望 200" >&2; exit 1; }}
+echo "HTTPS 验收通过"
 """,
-        },
-    ]
+        })
+    
+    steps.append({
+        "label": "完成",
+        "timeout": 10,
+        "script": f"""echo "=========================================================="
+echo " 装好了。"
+echo
+echo "   后台地址: https://{domain}/admin"
+echo "   账号:     admin"
+echo "   密码:     见上面 'node server/user.js add admin' 打印的那一行"
+echo "            (忘了就: cd {docroot} && node server/user.js passwd admin)"
+echo
+echo "   改价记录:  https://{domain}/admin/changes"
+echo "   用户管理:  https://{domain}/admin/users"
+SDIR=""
+for d in "{docroot}/scripts" "{docroot}/脚本"; do
+  [ -d "$d" ] && SDIR="$d" && break
+done
+[ -n "$SDIR" ] && echo "   整表导入:  后台上传报价表, 或 cd $SDIR && python3 run_pipeline.py"
+echo
+HAS_TIERS=0
+for f in "{docroot}"/data/users/*/rates.json "{docroot}"/data/rates.json; do
+  [ -f "$f" ] || continue
+  if grep -q '"tiers"' "$f" 2>/dev/null; then HAS_TIERS=1; break; fi
+done
+if [ "$HAS_TIERS" = "1" ]; then
+  echo "   数据:       已带上现成报价数据, 登录后直接能用。"
+else
+  echo "   数据:       ** 空站 —— 这次装的是程序, 不含报价数据 **"
+  echo
+  echo "               想直接用现成数据, 换这个装法 (从发布服务器取带数据的包):"
+  echo "                 bash deploy/install-remote.sh root@这台机器 {domain}"
+  echo
+  HAS_XLSX=0
+  for f in "{docroot}"/scripts/*.xlsx "{docroot}"/脚本/*.xlsx; do
+    [ -f "$f" ] && HAS_XLSX=1 && break
+  done
+  if [ "$HAS_XLSX" = "1" ]; then
+    echo "               或在后台「整表导入」上传报价表 xlsx 自行导入。"
+  else
+    echo "               当前目录里也没有报价表 xlsx, 整表导入需要另外提供。"
+  fi
+fi
+echo "=========================================================="
+""",
+    })
+    
+    return steps
 
+
+# ---------------------------------------------------------------- Hermes Agent
 
 # ---------------------------------------------------------------- Hermes Agent
 
@@ -394,13 +505,13 @@ echo "      它仍然常驻并接受 cron 任务, 不是安装失败。"
 # ---------------------------------------------------------------- 音乐解锁
 
 
-def music_unlock_steps(domain: str, docroot: str = "", skip_ssl: bool = False) -> list[dict]:
+def music_unlock_steps(domain: str, docroot: str = "", skip_ssl: bool = False, access_mode: str = "https", tls_identity: str = "", ssh_ipv4: str | None = None, ssh_ipv6: str | None = None) -> list[dict]:
     """音乐解锁工具 —— 纯静态站, 拷文件 + 写 web server 配置。"""
     domain = validate_domain(domain)
     docroot = validate_docroot(docroot) or "/var/www/music-unlock"
     work = "/opt/vps-deploy/staging/music-unlock"
 
-    return [
+    steps = [
         {
             "label": "核对运行环境 (web server / 端口 / 磁盘)",
             "timeout": 60,
@@ -424,10 +535,9 @@ echo "环境核对通过"
             "script": """set -eu
 export DEBIAN_FRONTEND=noninteractive
 apt-get update
-apt-get install -y --no-install-recommends nginx ca-certificates curl
-apt-get install -y --no-install-recommends certbot python3-certbot-nginx || \\
-  echo "certbot 安装失败, 只能部署 HTTP"
+apt-get install -y --no-install-recommends nginx ca-certificates curl certbot python3-certbot-nginx
 nginx -v
+certbot --version
 """,
         },
         _download_step(
@@ -438,27 +548,57 @@ nginx -v
             label=f"下载固定版本源码并校验 (commit {MUSIC_UNLOCK_COMMIT[:12]})",
             workdir=work,
         ),
-        {
-            "label": f"执行安装 (静态站 + nginx 反代{' + 证书' if not skip_ssl else ''})",
-            "timeout": 600,
+    ]
+    
+    # Add TLS preflight if HTTPS mode
+    if access_mode == "https" and tls_identity:
+        steps.append({
+            "label": "核对域名解析、Certbot 与 ACME 80 端口",
+            "timeout": 60,
             "script": f"""set -eu
-SRC="$(cat "{work}/srcpath")"
-bash "$SRC/install.sh" --domain '{domain}' --root '{docroot}' --webserver nginx{' --no-tls' if skip_ssl else ''}
+test "$(id -u)" = 0
+command -v curl >/dev/null
+command -v getent >/dev/null
+# Public IPv4 egress
+public_ip="$(curl --proto '=https' --tlsv1.2 -4 -fsS --max-time 12 https://api.ipify.org)"
+case "$public_ip" in ""|*[!0-9.]* ) echo "无法识别公网 IPv4" >&2; exit 27;; esac
+if [ -n "{ssh_ipv4 or ''}" ]; then
+    test "$public_ip" = "{ssh_ipv4 or ''}" || {{
+        echo "VPS 出口 IP 与 SSH 绑定 IPv4 不符" >&2; exit 28;
+    }}
+fi
+getent ahostsv4 "{tls_identity}" | awk '{{print $1}}' | grep -Fxq "$public_ip" || {{
+    echo "域名 A 记录不指向本机公网 IPv4，请先配置 DNS" >&2; exit 29;
+}}
+# ACME port 80 must be free for standalone/nginx challenge
+if ss -Hltn 'sport = :80' | grep -q .; then
+    echo "TCP 80 已被占用，无法进行 ACME 验证" >&2; exit 26
+fi
+echo "TLS 预检通过"
 """,
-        },
-        {
-            "label": "验收 (静态资源 / nginx 配置)",
-            "timeout": 90,
-            "script": f"""set -eu
+        })
+    
+    ssl_flag = " --no-tls" if skip_ssl else ""
+    steps.append({
+        "label": f"执行安装 (静态站 + nginx 反代{' + 证书' if access_mode == 'https' and not skip_ssl else ''})",
+        "timeout": 600,
+        "script": f"""set -eu
+SRC="$(cat "{work}/srcpath")"
+bash "$SRC/install.sh" --domain '{domain}' --root '{docroot}' --webserver nginx{ssl_flag}
+""",
+    })
+    steps.append({
+        "label": "验收 (静态资源 / nginx 配置 / HTTPS)",
+        "timeout": 90,
+        "script": f"""set -eu
 test -f '{docroot}/index.html' || {{ echo "没有找到 {docroot}/index.html" >&2; exit 1; }}
-# nginx 必须真的在跑 —— 只看 nginx -t 的话, "装了但没启动" 会蒙混过关
+# nginx 必须真的在跑
 systemctl is-active --quiet nginx || {{
   echo "nginx 没有启动 —— 站点会 502" >&2
   systemctl status nginx --no-pager -n 20 >&2
   exit 1
 }}
-# 必须带 Host 头走我们自己的 vhost; 不带的话命中的是 nginx 默认站点,
-# 默认站点正常也能返回 200 —— 那样即使我们的站点配置坏了也会"通过"
+# 必须带 Host 头走我们自己的 vhost
 code="$(curl -s -o /dev/null -w '%{{http_code}}' --max-time 10 -H 'Host: {domain}' http://127.0.0.1/)"
 test "$code" = "200" || {{ echo "本机 HTTP 返回 $code, 期望 200" >&2; exit 1; }}
 nginx -t
@@ -466,9 +606,35 @@ echo "验收通过"
 echo
 echo "下一步: 打开 https://{domain}/ 拖入 .ncm 文件即可本地解密, 文件不上传。"
 """,
-        },
-    ]
+    })
+    
+    # HTTPS verification step
+    if access_mode == "https" and not skip_ssl:
+        steps.append({
+            "label": "验收 HTTPS (证书有效性 / 443 端口 / 域名证书匹配)",
+            "timeout": 60,
+            "script": f"""set -eu
+# Check certbot renewal timer
+systemctl is-enabled certbot.timer >/dev/null || {{ echo "certbot.timer 未启用" >&2; exit 1; }}
+systemctl is-active certbot.timer >/dev/null || {{ echo "certbot.timer 未运行" >&2; exit 1; }}
+# Check certificate exists and is valid
+CERT="/etc/letsencrypt/live/{domain}/fullchain.pem"
+KEY="/etc/letsencrypt/live/{domain}/privkey.pem"
+test -s "$CERT" && test -s "$KEY" || {{ echo "证书文件不存在" >&2; exit 1; }}
+openssl x509 -in "$CERT" -noout -checkend 86400 >/dev/null || {{ echo "证书即将过期或已过期" >&2; exit 1; }}
+openssl x509 -in "$CERT" -noout -checkhost "{domain}" | grep -Fq 'does match' || {{ echo "证书域名不匹配" >&2; exit 1; }}
+# Check 443 port responds
+systemctl is-active --quiet nginx || {{ echo "nginx 未运行" >&2; exit 1; }}
+code="$(curl -s -o /dev/null -w '%{{http_code}}' --max-time 10 -H 'Host: {domain}' https://127.0.0.1/ 2>/dev/null || echo 000)"
+test "$code" = "200" || {{ echo "443 端口 HTTPS 返回 $code, 期望 200" >&2; exit 1; }}
+echo "HTTPS 验收通过"
+""",
+        })
+    
+    return steps
 
+
+# ---------------------------------------------------------------- 验收脚本
 
 # ---------------------------------------------------------------- 验收脚本
 

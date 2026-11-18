@@ -916,13 +916,18 @@ def create_deployment_plan(body: NewJob, *, expected_host: dict | None = None):
             raise HTTPException(status_code=422, detail="Hermes Agent 没有网站，不需要域名 / 安装目录 / 跳过证书参数")
         options = {"skip_browser": True if body.skip_browser is None else bool(body.skip_browser)}
     elif body.project in {"logistics-quote", "music-unlock"}:
-        if body.panel_port is not None or body.access_mode or body.source_job_id:
-            raise HTTPException(status_code=422, detail="此项目不支持面板端口 / 证书模式 / 升级任务参数")
+        if body.panel_port is not None or body.source_job_id:
+            raise HTTPException(status_code=422, detail="此项目不支持面板端口 / 升级任务参数")
         if body.domain is None or not body.domain.strip():
             raise HTTPException(status_code=422, detail="必须填写站点域名")
-        options = {"domain": body.domain.strip().lower()}
+        access_mode = body.access_mode or "https"
+        if access_mode not in {"local", "https"}:
+            raise HTTPException(status_code=422, detail="此项目仅支持 local / https 访问模式")
+        options = {"domain": body.domain.strip().lower(), "access_mode": access_mode}
         if body.docroot and body.docroot.strip():
             options["docroot"] = body.docroot.strip()
+        if access_mode == "https":
+            options.update(tls_options(host))
         if body.skip_ssl:
             options["skip_ssl"] = True
     elif body.panel_port is not None or body.access_mode or body.source_job_id:
