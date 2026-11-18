@@ -84,7 +84,8 @@ def test_failed_ip_issuance_emits_only_sanitized_actionable_error(tmp_path, fake
 
 def test_web_panel_offers_native_certificate_or_npm_termination():
     js = (Path(__file__).resolve().parents[1] / "app" / "static" / "app.js").read_text(encoding="utf-8")
-    assert 'name="access_mode"' not in js
+    # access_mode should NOT be in the global scope (used only in conditional form blocks for logistics-quote/music-unlock)
+    # but tls_strategy should still be there for 3x-ui/s-ui
     assert 'name="tls_strategy"' in js
     assert 'value="npm"' in js
     assert "payload.access_mode=tlsStrategy" in js
