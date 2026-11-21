@@ -219,6 +219,7 @@ class SSHExecutor:
             return self._run_password(host, script, timeout)
         try:
             res = subprocess.run(self._args(host), input=script, text=True,
+                                 encoding="utf-8", errors="replace",
                                  stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                                  timeout=timeout, check=False)
         except subprocess.TimeoutExpired as exc:

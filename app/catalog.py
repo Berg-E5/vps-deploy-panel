@@ -320,7 +320,7 @@ def compatibility(project: str, facts: dict[str, Any], options: dict | None = No
             issues.append("无法可靠检测 TCP 端口占用，请先安装 iproute2 并重新环境检测")
         if facts.get("TCP_80") != "free":
             issues.append("TCP 80 已被占用或无法检测；nginx 反代需要独占 80 端口")
-        if facts.get("TCP_443") != "free":
+        if options.get("access_mode") == "https" and facts.get("TCP_443") != "free":
             issues.append("TCP 443 已被占用或无法检测；HTTPS 需要独占 443 端口")
         if project == "logistics-quote":
             if facts.get("QUOTE_PRESENT") == "yes":
@@ -517,7 +517,8 @@ def build_plan(project: str, facts: dict[str, Any], options: dict | None = None)
         if source is not None:
             options["source_job_id"] = source
     elif project in {"logistics-quote", "music-unlock"}:
-        allowed = {"domain", "docroot", "skip_ssl"}
+        allowed = {"domain", "docroot", "skip_ssl", "access_mode",
+                   "tls_identity", "certificate_type", "ssh_ipv4", "ssh_ipv6"}
         if set(options) - allowed:
             raise ValueError("部署选项包含未授权字段")
         domain = validate_domain(options.get("domain", ""))
@@ -525,11 +526,29 @@ def build_plan(project: str, facts: dict[str, Any], options: dict | None = None)
         skip_ssl = options.get("skip_ssl", False)
         if type(skip_ssl) is not bool:
             raise ValueError("skip_ssl 必须是布尔值")
-        options = {"domain": domain}
+        access_mode = options.get("access_mode", "local" if skip_ssl else "https")
+        if access_mode not in {"local", "https"}:
+            raise ValueError("自建站点只支持本机或 HTTPS 访问模式")
+        if access_mode == "https" and skip_ssl:
+            raise ValueError("HTTPS 模式不能同时跳过证书申请")
+        if access_mode == "https":
+            # The website domain is the certificate identity. The SSH endpoint
+            # is only a preflight/DNS pin and must never replace the site name.
+            tls_mode, identity = identify(options.get("tls_identity") or domain)
+            if tls_mode != "domain" or identity != domain:
+                raise ValueError("站点 HTTPS 证书标识必须与站点域名一致")
+            if "certificate_type" in options and options["certificate_type"] != "domain":
+                raise ValueError("自建站点只支持域名证书")
+            pins = _tls_ssh_bindings(identity, options)
+            options = {"domain": domain, "access_mode": "https",
+                       "tls_identity": identity, "certificate_type": "domain", **pins}
+        else:
+            if any(key in options for key in
+                   ("tls_identity", "certificate_type", "ssh_ipv4", "ssh_ipv6")):
+                raise ValueError("本机模式不能填写证书选项")
+            options = {"domain": domain, "access_mode": "local", "skip_ssl": True}
         if docroot:
             options["docroot"] = docroot
-        if skip_ssl:
-            options["skip_ssl"] = True
     elif options:
         raise ValueError("此项目暂不支持自定义部署选项")
     meta = CATALOG[project]

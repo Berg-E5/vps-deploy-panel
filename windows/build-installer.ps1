@@ -138,6 +138,7 @@ Copy-Item -Path (Join-Path $root 'windows\launcher.pyw') -Destination $stage -Fo
 Copy-Item -Path (Join-Path $root 'windows\PanelState.ps1') -Destination $stage -Force
 Copy-Item -Path (Join-Path $root 'windows\Uninstall.ps1') -Destination $stage -Force
 Copy-Item -Path (Join-Path $root 'requirements.txt') -Destination $stage -Force
+Copy-Item -Path (Join-Path $root 'requirements-codex-worker.txt') -Destination $stage -Force
 Copy-Item -Path (Join-Path $root 'windows\requirements-win.lock') -Destination $stage -Force
 Copy-Item -Path (Join-Path $root 'LICENSE') -Destination $stage -Force
 Copy-Item -Path (Join-Path $root 'README.md') -Destination $stage -Force

@@ -2,8 +2,8 @@ FROM python:3.12-slim
 WORKDIR /srv/ai
 RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates \
  && rm -rf /var/lib/apt/lists/*
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt openai-codex
+COPY requirements-codex-worker.txt .
+RUN pip install --no-cache-dir -r requirements-codex-worker.txt
 COPY app/ai_worker.py ./app/ai_worker.py
 RUN touch ./app/__init__.py && useradd --system --uid 10002 --create-home agent \
  && mkdir -p /home/agent/.codex \

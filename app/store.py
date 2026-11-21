@@ -115,6 +115,12 @@ class Store:
                 (hostname, port),
             ).fetchone())
 
+    def has_active_jobs(self) -> bool:
+        with self._db() as c:
+            return bool(c.execute(
+                "SELECT 1 FROM jobs WHERE status IN ('queued','running') LIMIT 1"
+            ).fetchone())
+
     def update_host(self, host_id: int, name: str, hostname: str,
                     port: int, username: str, tls_domain: str | None = None) -> dict:
         with self.lock, self._db() as c:
@@ -156,7 +162,7 @@ class Store:
                     """UPDATE jobs SET status='invalidated',
                        error='证书域名已更新，旧审批计划不可用于新的证书标识',
                        updated_at=?
-                       WHERE host_id=? AND project IN ('3x-ui','3x-ui-https')
+                       WHERE host_id=? AND project IN ('3x-ui','3x-ui-https','s-ui','s-ui-https')
                        AND status='planned'""",
                     (now(), host_id),
                 )

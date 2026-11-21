@@ -99,6 +99,8 @@ def build_bundle(stage: Path) -> Path:
     say("复制应用代码")
     shutil.copytree(ROOT / "app", stage / "app",
                     ignore=shutil.ignore_patterns("__pycache__", "*.pyc"))
+    shutil.copyfile(ROOT / "requirements-codex-worker.txt",
+                    stage / "requirements-codex-worker.txt")
 
     # 3) WebView2
     downloads = ROOT / ".build/windows-downloads"

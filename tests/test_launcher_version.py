@@ -42,6 +42,25 @@ if (-not (Test-VPSDeployPanelPortAvailable -Port $port)) { throw 'Probe leaked i
     )
 
 
+def test_windows_installer_contains_desktop_backend_and_codex_requirements():
+    desktop = ROOT / "app" / "desktop.py"
+    assert desktop.is_file()
+    assert "uvicorn.Server" in desktop.read_text(encoding="utf-8")
+    assert "app/desktop.py" in (ROOT / "packaging" / "windows" / "Launcher.cs").read_text(encoding="utf-8")
+    builder = (ROOT / "windows" / "build-installer.ps1").read_text(encoding="utf-8-sig")
+    assert "requirements-codex-worker.txt" in builder
+    installer = (ROOT / "windows" / "installer.iss").read_text(encoding="utf-8")
+    assert 'Source: "build\\requirements-codex-worker.txt"' in installer
+    assert r"{localappdata}\{#AppNameLower}" in installer
+    assert r"{userappdata}\{#AppNameLower}" not in installer
+    launcher = (ROOT / "windows" / "launcher.pyw").read_text(encoding="utf-8-sig")
+    assert 'auto_value = _env_value(lines, "CODEX_AUTO_START")' in launcher
+    assert 'os.environ["VPSDEPLOY_CODEX_NATIVE_AUTO_START"] = "1"' in launcher
+    assert "VPSDEPLOY_WORKER_TOKEN" in launcher
+    assert "secrets.token_urlsafe(40)" in launcher
+    assert "VPSDEPLOY_LOCAL_PORT" in launcher
+
+
 def test_current_version_is_consistent_between_server_frontend_and_docs():
     root = Path(__file__).resolve().parents[1]
     main = (root / "app" / "main.py").read_text(encoding="utf-8")

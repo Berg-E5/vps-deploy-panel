@@ -3,14 +3,18 @@ from __future__ import annotations
 
 from contextlib import asynccontextmanager
 
+import hashlib
 import os
 import json
+import subprocess
+import tempfile
 import time
 import re
 import ipaddress
 import secrets
 import urllib.request
 from pathlib import Path
+from urllib.parse import urlparse
 from typing import Literal
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Request
@@ -44,7 +48,7 @@ from .s_ui import (PORT as SUI_PORT, STATUS as SUI_STATUS_SCRIPT, ACCESS as SUI_
 from .dockge import (PORT as DOCKGE_PORT, STATUS as DOCKGE_STATUS_SCRIPT,
                      parse_status as parse_dockge_status, local_access as dockge_local_access)
 
-from .config import env, env_flag
+from .config import env, env_flag, env_int
 
 BASE = Path(__file__).resolve().parent
 DATA_DIR = Path(env("DATA", str(BASE.parent / "data")))
@@ -52,6 +56,11 @@ DATA_DIR.mkdir(parents=True, exist_ok=True)
 ADMIN_TOKEN = env("ADMIN_TOKEN", "")
 if len(ADMIN_TOKEN) < 24 or ADMIN_TOKEN.startswith("REPLACE_"):
     raise RuntimeError("必须配置长度至少 24 字符的 VPSDEPLOY_ADMIN_TOKEN")
+
+CURRENT_VERSION = "1.0.1"
+GITHUB_RELEASE_API = "https://api.github.com/repos/Berg-E5/vps-deploy-panel/releases/latest"
+RELEASE_DOWNLOAD_PREFIX = "https://github.com/Berg-E5/vps-deploy-panel/releases/download/"
+WINDOWS_UPDATER = os.name == "nt"
 
 store = Store(str(DATA_DIR / "vpsdeploy.db"))
 executor = SSHExecutor(SSHConfig(
@@ -71,6 +80,7 @@ async def native_codex_lifespan(_application: FastAPI):
 app = FastAPI(title="VPS Deploy Panel", version="1.0.1",
               lifespan=native_codex_lifespan)
 LOCAL_AUTO_LOGIN = env_flag("LOCAL_AUTO_LOGIN", "0")
+LOCAL_PORT = env_int("LOCAL_PORT", 0)
 
 # Windows QuickStart opts into a native, dedicated Codex SDK process. Never
 # start it on Linux/NAS, Docker, or during unrelated TestClient/CI runs.
@@ -241,6 +251,19 @@ def tls_options(host: dict) -> dict:
     return result
 
 
+def web_tls_options(host: dict, domain: str) -> dict:
+    """Use the site domain for TLS while pinning the SSH endpoint separately."""
+    _, identity = identify(domain)
+    result = {"tls_identity": identity, "certificate_type": "domain"}
+    try:
+        address = ipaddress.ip_address(host["hostname"])
+    except ValueError:
+        return result
+    if address.is_global and not address.is_multicast:
+        result["ssh_ipv6" if isinstance(address, ipaddress.IPv6Address) else "ssh_ipv4"] = str(address)
+    return result
+
+
 def public_host(host: dict) -> dict:
     # Never return the SSH password or any credential content through this API.
     remembered = getattr(executor, "password_remembered", lambda _id: False)
@@ -263,37 +286,67 @@ def index():
 
 @app.get("/api/health")
 def health():
-    return {"ok": True, "version": "1.0.1", "security": "local-only"}
+    return {"ok": True, "version": CURRENT_VERSION, "security": "local-only"}
 
 
-@app.get("/api/update/check")
+def _fetch_latest_release() -> dict:
+    req = urllib.request.Request(
+        GITHUB_RELEASE_API,
+        headers={"User-Agent": "VPSDeployPanel-Updater"},
+    )
+    with urllib.request.urlopen(req, timeout=10) as resp:
+        data = json.load(resp)
+    if not isinstance(data, dict):
+        raise ValueError("GitHub 返回了无效的版本信息")
+    return data
+
+
+def _select_release_asset(release: dict, version: str, tag: str | None = None) -> dict:
+    """Select exactly one versioned main installer, never the first Setup.exe."""
+    expected = f"VPSDeployPanel-{version}-Setup.exe"
+    matches = [
+        asset for asset in release.get("assets", [])
+        if isinstance(asset, dict) and asset.get("name") == expected
+        and asset.get("state", "uploaded") == "uploaded"
+    ]
+    if len(matches) != 1:
+        raise ValueError(f"Release 中必须存在且仅存在一个 {expected}")
+    asset = matches[0]
+    url = str(asset.get("browser_download_url", ""))
+    parsed = urlparse(url)
+    tag = tag or f"v{version}"
+    prefix = f"{RELEASE_DOWNLOAD_PREFIX}{tag}/{expected}"
+    if (parsed.scheme != "https" or parsed.hostname != "github.com"
+            or parsed.username or parsed.password or not url.startswith(prefix)):
+        raise ValueError("安装包下载地址不属于预期的 GitHub Release")
+    digest = str(asset.get("digest", ""))
+    if not re.fullmatch(r"sha256:[a-f0-9]{64}", digest.lower()):
+        raise ValueError("Release 资产缺少 SHA-256 摘要，拒绝自动安装")
+    return {"name": expected, "url": url, "digest": digest.lower()}
+
+
+def _release_update_payload(release: dict) -> dict:
+    version = str(release.get("tag_name", "")).strip().lstrip("v")
+    if not re.fullmatch(r"\d+\.\d+\.\d+", version):
+        raise ValueError("Release 版本号格式不正确")
+    asset = _select_release_asset(release, version, str(release.get("tag_name", "")))
+    return {
+        "has_update": _version_greater(version, CURRENT_VERSION),
+        "version": version,
+        "current": CURRENT_VERSION,
+        "url": asset["url"],
+        "digest": asset["digest"],
+        "notes": str(release.get("body", ""))[:2000],
+    }
+
+
+@app.get("/api/update/check", dependencies=[Depends(authorized)])
 def update_check():
-    """Windows 客户端自动更新检查"""
+    """Authenticated Windows client update check."""
     try:
-        req = urllib.request.Request(
-            "https://api.github.com/repos/Berg-E5/vps-deploy-panel/releases/latest",
-            headers={"User-Agent": "VPSDeployPanel-Updater"}
-        )
-        with urllib.request.urlopen(req, timeout=10) as resp:
-            data = json.load(resp)
-        latest_version = data.get("tag_name", "").lstrip("v")
-        current_version = "1.0.1"
-        assets = data.get("assets", [])
-        setup_url = ""
-        for asset in assets:
-            if asset.get("name", "").endswith("-Setup.exe"):
-                setup_url = asset.get("browser_download_url", "")
-                break
-        has_update = _version_greater(latest_version, current_version)
-        return {
-            "has_update": has_update,
-            "version": latest_version,
-            "current": current_version,
-            "url": setup_url,
-            "notes": data.get("body", "")[:2000],
-        }
-    except Exception as exc:
-        return {"has_update": False, "error": str(exc)}
+        return _release_update_payload(_fetch_latest_release())
+    except Exception:
+        return {"has_update": False, "error": "无法验证最新 Release，请稍后重试"}
 
 
 def _version_greater(a: str, b: str) -> bool:
@@ -308,29 +361,79 @@ def _version_greater(a: str, b: str) -> bool:
         return False
 
 
-@app.post("/api/update/install")
-def update_install(body: dict):
-    """下载并静默安装更新包"""
-    url = body.get("url", "")
-    if not url:
-        raise HTTPException(status_code=400, detail="缺少下载地址")
-    if not url.endswith("-Setup.exe"):
-        raise HTTPException(status_code=400, detail="只支持安装包更新")
+class UpdateInstall(BaseModel):
+    version: str = Field(min_length=1, max_length=32)
+
+
+def _download_verified_installer(asset: dict) -> Path:
+    fd, raw_path = tempfile.mkstemp(prefix="vpsdeploy-update-", suffix=".exe")
+    os.close(fd)
+    path = Path(raw_path)
+    digest = hashlib.sha256()
+    total = 0
     try:
-        import tempfile
-        import subprocess
-        temp_dir = Path(tempfile.gettempdir())
-        installer_path = temp_dir / f"VPSDeployPanel-Update-{int(time.time())}.exe"
-        urllib.request.urlretrieve(url, installer_path)
+        req = urllib.request.Request(
+            asset["url"], headers={"User-Agent": "VPSDeployPanel-Updater"}
+        )
+        with urllib.request.urlopen(req, timeout=60) as response, path.open("wb") as output:
+            while True:
+                chunk = response.read(1024 * 1024)
+                if not chunk:
+                    break
+                total += len(chunk)
+                if total > 250 * 1024 * 1024:
+                    raise ValueError("更新包超过 250 MB 安全上限")
+                digest.update(chunk)
+                output.write(chunk)
+        expected = asset["digest"].split(":", 1)[1]
+        if not secrets.compare_digest(digest.hexdigest(), expected):
+            raise ValueError("更新包 SHA-256 校验失败")
+        if total < 1024 * 1024:
+            raise ValueError("更新包大小异常")
+        return path
+    except Exception:
+        path.unlink(missing_ok=True)
+        raise
+
+
+@app.post("/api/update/install", dependencies=[Depends(authorized)])
+def update_install(body: UpdateInstall):
+    """Install only the exact latest GitHub Release asset with a verified digest."""
+    if not WINDOWS_UPDATER:
+        raise HTTPException(status_code=409, detail="自动安装更新仅支持 Windows")
+    try:
+        release = _fetch_latest_release()
+        latest = str(release.get("tag_name", "")).strip().lstrip("v")
+        if body.version != latest:
+            raise ValueError("更新版本已变化，请重新检查更新")
+        if not _version_greater(latest, CURRENT_VERSION):
+            raise ValueError("当前已经是最新版本")
+        asset = _select_release_asset(release, latest, str(release.get("tag_name", "")))
+        installer = _download_verified_installer(asset)
+    except (OSError, ValueError) as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    try:
         result = subprocess.run(
-            [str(installer_path), "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/CLOSEAPPLICATIONS"],
+            [str(installer), "/VERYSILENT", "/SUPPRESSMSGBOXES",
+             "/NORESTART", "/CLOSEAPPLICATIONS"],
             timeout=300,
             capture_output=True,
         )
-        installer_path.unlink(missing_ok=True)
         return {"ok": result.returncode == 0, "exit_code": result.returncode}
-    except Exception as exc:
-        return {"ok": False, "error": str(exc)}
+    finally:
+        installer.unlink(missing_ok=True)
+
+
+@app.post("/api/desktop/stop", dependencies=[Depends(authorized)])
+def desktop_stop():
+    """Gracefully stop the opt-in Windows desktop backend."""
+    if store.has_active_jobs():
+        raise HTTPException(status_code=409, detail="仍有部署任务执行中，不能关闭桌面面板")
+    server = getattr(app.state, "uvicorn_server", None)
+    if server is None:
+        raise HTTPException(status_code=409, detail="当前不是桌面模式，不能通过此接口关闭")
+    server.should_exit = True
+    return {"ok": True, "closing": True}
 
 
 @app.get("/api/local-session")
@@ -346,6 +449,8 @@ def local_session(request: Request, x_vpsdeploy_local: str | None = Header(defau
     client = request.client.host if request.client else ""
     host = request.headers.get("host", "").lower()
     allowed_hosts = {"127.0.0.1:8787", "localhost:8787"}
+    if 1 <= LOCAL_PORT <= 65535:
+        allowed_hosts.update({f"127.0.0.1:{LOCAL_PORT}", f"localhost:{LOCAL_PORT}"})
     origin = request.headers.get("origin", "")
     fetch_site = request.headers.get("sec-fetch-site", "")
     if (client not in {"127.0.0.1", "::1"} or host not in allowed_hosts
@@ -991,12 +1096,15 @@ def create_deployment_plan(body: NewJob, *, expected_host: dict | None = None):
         access_mode = body.access_mode or "https"
         if access_mode not in {"local", "https"}:
             raise HTTPException(status_code=422, detail="此项目仅支持 local / https 访问模式")
-        options = {"domain": body.domain.strip().lower(), "access_mode": access_mode}
+        if body.skip_ssl and access_mode == "https":
+            raise HTTPException(status_code=422, detail="HTTPS 模式不能同时跳过证书申请")
+        domain = body.domain.strip().lower()
+        options = {"domain": domain, "access_mode": access_mode}
         if body.docroot and body.docroot.strip():
             options["docroot"] = body.docroot.strip()
         if access_mode == "https":
-            options.update(tls_options(host))
-        if body.skip_ssl:
+            options.update(web_tls_options(host, domain))
+        else:
             options["skip_ssl"] = True
     elif body.panel_port is not None or body.access_mode or body.source_job_id:
         raise HTTPException(status_code=422, detail="此项目不支持 HTTPS 部署参数")

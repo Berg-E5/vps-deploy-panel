@@ -17,7 +17,7 @@ FACTS={
     "OS_ID":"ubuntu","OS_VERSION":"26.10","ARCH":"x86_64",
     "UID":"0","FREE_KB":"3200000","DOCKER":"no","COMPOSE":"no",
     "SYSTEMD":"yes","SS_AVAILABLE":"yes","UDP_51820":"free",
-    "XUI_PRESENT":"no",
+    "XUI_PRESENT":"no", "SUI_PRESENT":"no", "DOCKGE_PRESENT":"no",
 }
 
 
@@ -137,6 +137,23 @@ def test_edit_tls_domain_without_changing_ssh_endpoint_but_invalidate_old_pendin
     })
     assert another.status_code==200
     assert another.json()["plan"]["options"]["tls_identity"]=="panel.example.com"
+
+
+def test_sui_tls_domain_change_invalidates_pending_plan(app_vps):
+    client,db,_=app_vps
+    host=add(client,None).json()
+    planned=client.post("/api/jobs",headers=HEAD,json={
+        "host_id":host["id"],"project":"s-ui","access_mode":"https",
+    })
+    assert planned.status_code==200,planned.text
+    job=planned.json()
+    assert job["plan"]["options"]["tls_identity"]=="45.32.35.195"
+    edited=client.put(f"/api/hosts/{host['id']}",headers=HEAD,json={
+        "name":"JP VPS","hostname":host["hostname"],"port":22,
+        "username":"root","tls_domain":"panel.example.com",
+    })
+    assert edited.status_code==200,edited.text
+    assert db.job(job["id"])["status"]=="invalidated"
 
 
 def test_edit_without_domain_field_preserves_existing_domain(app_vps):

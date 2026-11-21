@@ -1948,7 +1948,7 @@ el('#check-update-btn').addEventListener('click',async e=>{
       const confirm=window.confirm(`发现新版本 ${resp.version} (当前 ${resp.current})\n\n${resp.notes||''}\n\n是否现在下载并安装？`);
       if(confirm){
         btn.textContent='下载中...';
-        const install=await api('/update/install',{method:'POST',body:JSON.stringify({url:resp.url})});
+        const install=await api('/update/install',{method:'POST',body:JSON.stringify({version:resp.version})});
         if(install.ok){
           toast('更新安装完成，应用即将重启');
           setTimeout(()=>location.reload(),2000);

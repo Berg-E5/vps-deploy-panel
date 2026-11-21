@@ -78,6 +78,7 @@ Source: "{#BundleDir}\BUILD-MANIFEST.json"; DestDir: "{app}"; Flags: ignoreversi
 Source: "{#BundleDir}\runtime\*"; DestDir: "{app}\runtime"; Flags: ignoreversion recursesubdirs createallsubdirs
 ; 面板代码
 Source: "{#BundleDir}\app\*"; DestDir: "{app}\app"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "{#BundleDir}\requirements-codex-worker.txt"; DestDir: "{app}"; Flags: ignoreversion
 ; 卸载清理脚本
 Source: "{#BundleDir}\scripts\Uninstall-Desktop.ps1"; DestDir: "{app}\scripts"; Flags: ignoreversion
 ; 说明与许可
@@ -86,8 +87,8 @@ Source: "{#BundleDir}\README.md"; DestDir: "{app}"; DestName: "安装说明.md";
 
 [Dirs]
 ; 用户数据放在安装目录之外: 覆盖升级不会抹掉
-Name: "{userappdata}\{#AppNameLower}"; Permissions: users-modify
-Name: "{userappdata}\{#AppNameLower}\logs"; Permissions: users-modify
+Name: "{localappdata}\{#AppNameLower}"; Permissions: users-modify
+Name: "{localappdata}\{#AppNameLower}\logs"; Permissions: users-modify
 
 [Icons]
 Name: "{group}\{#AppName}"; Filename: "{app}\VPSDeployPanel.exe"; WorkingDir: "{app}"

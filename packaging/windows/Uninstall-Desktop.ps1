@@ -15,10 +15,14 @@ if (Test-Path $portFile) {
     if ($recorded -match '^\d+$') { $port = [int]$recorded }
 }
 $token = ''
-$settings = Join-Path $appHome 'settings.json'
-if (Test-Path $settings) {
+$envFile = Join-Path $appHome '.env'
+if (Test-Path $envFile) {
     try {
-        $token = (Get-Content $settings -Raw | ConvertFrom-Json).admin_token
+        foreach ($line in Get-Content $envFile) {
+            if ($line -match '^VPSDEPLOY_ADMIN_TOKEN=(.*)$') {
+                $token = $Matches[1].Trim('"', "'")
+            }
+        }
     } catch { $token = '' }
 }
 if ($token) {

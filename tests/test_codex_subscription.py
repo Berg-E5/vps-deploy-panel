@@ -153,7 +153,14 @@ def test_worker_device_login_and_sandboxed_diagnosis(monkeypatch):
     diagnosis = client.post("/diagnose", headers=WORKER, json=request)
     assert diagnosis.status_code == 200
     assert diagnosis.json()["message"] == "只读排障建议"
-    assert FakeCodex.runs[-1] == {"sandbox": "read_only", "approval_mode": "deny_all"}
+    hardened = FakeCodex.runs[-1]
+    assert hardened["sandbox"] == "read_only"
+    assert hardened["approval_mode"] == "deny_all"
+    assert hardened["ephemeral"] is True
+    assert hardened["config"]["features"]["shell_tool"] is False
+    assert hardened["config"]["features"]["apps"] is False
+    assert hardened["config"]["mcp_servers"] == {}
+    assert hardened["config"]["web_search"] == "disabled"
     assert client.post("/account/logout", headers=WORKER).json()["connected"] is False
     assert client.post("/diagnose", headers=WORKER, json=request).status_code == 409
 

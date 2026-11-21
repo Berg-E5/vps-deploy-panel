@@ -80,14 +80,15 @@ Source: "build\PanelState.ps1"; DestDir: "{app}"; Flags: ignoreversion
 Source: "build\Uninstall.ps1"; DestDir: "{app}"; Flags: ignoreversion
 ; 说明与许可
 Source: "build\requirements.txt"; DestDir: "{app}"; Flags: ignoreversion
+Source: "build\requirements-codex-worker.txt"; DestDir: "{app}"; Flags: ignoreversion
 Source: "build\requirements-win.lock"; DestDir: "{app}"; Flags: ignoreversion
 Source: "build\LICENSE"; DestDir: "{app}"; Flags: ignoreversion
 Source: "build\README.md"; DestDir: "{app}"; DestName: "安装说明.md"; Flags: ignoreversion
 
 [Dirs]
 ; 用户数据放在安装目录之外: 升级覆盖安装时不会被抹掉
-Name: "{userappdata}\{#AppNameLower}"; Permissions: users-modify
-Name: "{userappdata}\{#AppNameLower}\logs"; Permissions: users-modify
+Name: "{localappdata}\{#AppNameLower}"; Permissions: users-modify
+Name: "{localappdata}\{#AppNameLower}\logs"; Permissions: users-modify
 
 [Icons]
 ; 启动器用相对脚本名: 安装目录名含空格, 绝对路径当参数传会被引号规则坑掉

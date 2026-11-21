@@ -71,6 +71,40 @@ def test_loopback_auto_login_is_opt_in(monkeypatch, enabled):
     assert c.get("/api/local-session").status_code == 403
 
 
+def test_local_auto_login_tracks_the_actual_fallback_port(monkeypatch):
+    monkeypatch.setattr(main, "LOCAL_AUTO_LOGIN", True)
+    monkeypatch.setattr(main, "LOCAL_PORT", 8788)
+    headers = {"X-VPSDeploy-Local":"1", "Sec-Fetch-Site":"same-origin"}
+    fallback = TestClient(main.app, base_url="http://127.0.0.1:8788",
+                          client=("127.0.0.1", 45101))
+    response = fallback.get("/api/local-session", headers=headers)
+    assert response.status_code == 200
+    assert response.json()["token"] == main.ADMIN_TOKEN
+    rejected = TestClient(main.app, base_url="http://127.0.0.1:8789",
+                          client=("127.0.0.1", 45101))
+    assert rejected.get("/api/local-session", headers=headers).status_code == 403
+
+
+def test_desktop_stop_is_authenticated_and_refuses_active_jobs(monkeypatch):
+    class Server:
+        should_exit = False
+
+    server = Server()
+    monkeypatch.setattr(main.app.state, "uvicorn_server", server, raising=False)
+    monkeypatch.setattr(main.store, "has_active_jobs", lambda: False)
+    client = TestClient(main.app)
+    assert client.post("/api/desktop/stop").status_code == 401
+    response = client.post("/api/desktop/stop", headers=HEAD)
+    assert response.status_code == 200
+    assert server.should_exit is True
+
+    server.should_exit = False
+    monkeypatch.setattr(main.store, "has_active_jobs", lambda: True)
+    response = client.post("/api/desktop/stop", headers=HEAD)
+    assert response.status_code == 409
+    assert server.should_exit is False
+
+
 def test_local_auto_login_rejects_remote_rebinding_and_cross_origin(monkeypatch):
     monkeypatch.setattr(main, "LOCAL_AUTO_LOGIN", True)
     headers = {"X-VPSDeploy-Local": "1"}
