@@ -80,5 +80,9 @@ def test_current_version_is_consistent_between_server_frontend_and_docs():
     assert 'version="1.0.2"' in main
     assert "ALPHA v1.0.2" in html
     assert "const CLIENT_VERSION = '1.0.2'" in js
+    assert 'id="footer-version"' in html
+    assert "VPS Deploy Panel v1.0.0" not in html
+    assert "VPS Deploy Panel v1.0.0" not in js
+    assert "footerVersion.textContent = 'v' + CLIENT_VERSION" in js
     assert "api('/health')" in js
     assert "版本不一致" in js

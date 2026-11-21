@@ -10,12 +10,14 @@ import os
 import shutil
 import subprocess
 import sys
+from types import SimpleNamespace
 
 import pytest
 from fastapi.testclient import TestClient
 
 from app import main
 from app.catalog import build_plan
+from app.executor import SSHExecutor
 from app.s_ui import (
     VERSION, ARTIFACTS, steps, parse_status, parse_access,
     PORT, SUB_PORT, RESULT_FILE, LOCAL_LISTENER_GUARD, STATUS, ACCESS,
@@ -26,8 +28,8 @@ HEAD={"X-Admin-Token":"test-only-"+"a"*32}
 FACTS={
     "OS_ID":"ubuntu","OS_VERSION":"26.10","ARCH":"x86_64",
     "UID":"0","FREE_KB":"5000000","SYSTEMD":"yes","SS_AVAILABLE":"yes",
-    "SUI_PRESENT":"no","XUI_PRESENT":"no","DOCKER":"no","COMPOSE":"no",
-    "UDP_51820":"free",
+    "SUI_PRESENT":"no","SUI_TCP_2095":"free","SUI_TCP_2096":"free",
+    "XUI_PRESENT":"no","DOCKER":"no","COMPOSE":"no","UDP_51820":"free",
 }
 HOST={"name":"VPS","hostname":"45.32.35.195","username":"root","port":22}
 
@@ -77,13 +79,34 @@ def test_shell_scripts_parse_as_bash(arch):
     {"SUI_PRESENT":"yes"}, {"SUI_PRESENT":"unknown"},
     {"SUI_PRESENT":None}, {"OS_ID":"alpine"}, {"ARCH":"armv7l"},
     {"UID":"1000"}, {"SYSTEMD":"no"}, {"SS_AVAILABLE":"no"},
-    {"FREE_KB":"599999"},
+    {"FREE_KB":"599999"}, {"SUI_TCP_2095":"busy"},
+    {"SUI_TCP_2096":"busy"}, {"SUI_TCP_2096":"unknown"},
 ])
 def test_fail_closed_if_not_verified_compatible(changed):
     plan=build_plan("s-ui",dict(FACTS,**changed))
     assert not plan["executable"]
     assert plan["steps"]==[]
     assert plan["issues"]
+
+
+def test_preflight_collects_sui_reserved_port_facts(monkeypatch):
+    captured = {}
+
+    def fake_run(_host, script, timeout):
+        captured["script"] = script
+        captured["timeout"] = timeout
+        return (
+            "OS_ID=ubuntu\nARCH=x86_64\nUID=0\n"
+            "SUI_TCP_2095=free\nSUI_TCP_2096=busy\n"
+        )
+
+    executor = SimpleNamespace(run=fake_run)
+    facts = SSHExecutor.preflight(executor, HOST)
+    assert captured["timeout"] == 35
+    assert "sport = :2095" in captured["script"]
+    assert "sport = :2096" in captured["script"]
+    assert facts["SUI_TCP_2095"] == "free"
+    assert facts["SUI_TCP_2096"] == "busy"
 
 
 def test_sui_forbids_custom_arguments_or_unpinned_arch():
@@ -181,6 +204,26 @@ def test_install_plan_created_then_explicit_approval_not_automatic(sui_api):
     assert job["plan"]["options"]["certificate_type"]=="ip"
     assert all("a"*48 not in x["script"] for x in job["plan"]["steps"])
     assert db.job(job["id"])["status"]=="planned"
+
+
+def test_sui_reserved_port_conflict_blocks_plan_before_approval(sui_api):
+    client, _db, host, ssh = sui_api
+    ssh.preflight = lambda _host: {
+        **FACTS,
+        "SUI_TCP_2095": "free",
+        "SUI_TCP_2096": "busy",
+    }
+    response = client.post(
+        "/api/jobs",
+        headers=HEAD,
+        json={"host_id": host["id"], "project": "s-ui", "access_mode": "local"},
+    )
+    assert response.status_code == 200, response.text
+    plan = response.json()["plan"]
+    assert plan["eligible"] is False
+    assert plan["executable"] is False
+    assert plan["steps"] == []
+    assert any("2096" in issue for issue in plan["issues"])
 
 
 def test_existing_sui_detected_and_overwrite_blocked(sui_api):

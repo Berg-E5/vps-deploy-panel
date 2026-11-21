@@ -460,6 +460,8 @@ if [ -d /usr/local/x-ui ] || [ -d /etc/x-ui ] || command -v x-ui >/dev/null 2>&1
 if [ -d /usr/local/s-ui ] || [ -d /etc/s-ui ] || [ -e /usr/bin/s-ui ] || (command -v systemctl >/dev/null 2>&1 && systemctl list-unit-files --no-legend s-ui.service 2>/dev/null | grep -q '^s-ui[.]service'); then echo SUI_PRESENT=yes; else echo SUI_PRESENT=no; fi
 if [ -e /opt/dockge ] || [ -L /opt/dockge ] || [ -e /opt/dockge-apps ] || [ -L /opt/dockge-apps ] || [ -e /opt/vpsdeploy/dockge ] || [ -L /opt/vpsdeploy/dockge ] || (command -v docker >/dev/null 2>&1 && (docker container inspect dockge >/dev/null 2>&1 || docker container inspect dockge-apps >/dev/null 2>&1 || docker container inspect vpsdeploy-dockge >/dev/null 2>&1 || docker container inspect vpsdeploy-dockge-apps >/dev/null 2>&1 || docker ps -a --format '{{.Image}}' 2>/dev/null | grep -Eq '(^|/)(louislam/dockge|dockge-apps|vpsdeploy/dockge-apps)(:|@)')); then echo DOCKGE_PRESENT=yes; else echo DOCKGE_PRESENT=no; fi
 if ! command -v ss >/dev/null 2>&1; then echo DOCKGE_TCP_5001=unknown; elif ss -Hltn 'sport = :5001' | grep -q . || (command -v docker >/dev/null 2>&1 && test -n "$(docker ps -q --filter 'publish=5001/tcp' 2>/dev/null)"); then echo DOCKGE_TCP_5001=busy; else echo DOCKGE_TCP_5001=free; fi
+if ! command -v ss >/dev/null 2>&1; then echo SUI_TCP_2095=unknown; elif ss -Hltn 'sport = :2095' | grep -q .; then echo SUI_TCP_2095=busy; else echo SUI_TCP_2095=free; fi
+if ! command -v ss >/dev/null 2>&1; then echo SUI_TCP_2096=unknown; elif ss -Hltn 'sport = :2096' | grep -q .; then echo SUI_TCP_2096=busy; else echo SUI_TCP_2096=free; fi
 if ! command -v ss >/dev/null 2>&1; then echo UDP_51820=unknown; elif ss -Hlun | grep -Eq '(^|[[:space:]])[^[:space:]]*:51820([[:space:]]|$)'; then echo UDP_51820=busy; else echo UDP_51820=free; fi
 if ! command -v ss >/dev/null 2>&1; then echo TCP_80=unknown; elif ss -Hltn 'sport = :80' | grep -q .; then echo TCP_80=busy; else echo TCP_80=free; fi
 if ! command -v ss >/dev/null 2>&1; then echo TCP_443=unknown; elif ss -Hltn 'sport = :443' | grep -q .; then echo TCP_443=busy; else echo TCP_443=free; fi
@@ -481,7 +483,7 @@ printf 'HIDDIFY_STATE=%s\\n' "$(hiddify_precheck)"
         for line in self.run(host, script, 35).splitlines():
             if "=" in line:
                 k, v = line.split("=", 1)
-                if k in {"OS_ID", "OS_VERSION", "ARCH", "UID", "FREE_KB", "DOCKER", "COMPOSE", "SYSTEMD", "UDP_51820", "SS_AVAILABLE", "GIT_AVAILABLE", "DOCKER_SETUP", "XUI_PRESENT", "SUI_PRESENT", "DOCKGE_PRESENT", "DOCKGE_TCP_5001",
+                if k in {"OS_ID", "OS_VERSION", "ARCH", "UID", "FREE_KB", "DOCKER", "COMPOSE", "SYSTEMD", "UDP_51820", "SS_AVAILABLE", "GIT_AVAILABLE", "DOCKER_SETUP", "XUI_PRESENT", "SUI_PRESENT", "SUI_TCP_2095", "SUI_TCP_2096", "DOCKGE_PRESENT", "DOCKGE_TCP_5001",
                            "TCP_80", "TCP_443", "QUOTE_PRESENT", "MUSIC_PRESENT", "HERMES_PRESENT"}:
                     result[k] = v.strip()[:80]
                 elif include_hiddify and k == "HIDDIFY_STATE":

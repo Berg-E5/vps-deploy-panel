@@ -1,4 +1,4 @@
-from app.tasks import JobRunner, sanitize
+from app.tasks import JobRunner, sanitize, summarize_output
 from app.store import Store
 from app.catalog import build_plan
 from tempfile import TemporaryDirectory
@@ -183,6 +183,74 @@ def test_certificate_mode_tampering_blocks_execution():
 def test_secret_redaction():
     assert 'my-secret' not in sanitize('password=my-secret')
     assert 'oops' not in sanitize('token: oops')
+
+
+def test_log_summary_filters_progress_and_keeps_whole_tail_lines():
+    output = (
+        "Collecting certbot==5.8.0\r\n"
+        "Downloading wheel 135 kB\r\n"
+        "Installing collected packages: certbot\r\n"
+        "Successfully installed certbot-5.8.0\r\n"
+        "VPSDEPLOY_CERTBOT_READY: isolated Certbot is ready\r\n"
+        "Trusted certificate issued and verification passed\r\n"
+    )
+    summary = summarize_output(output)
+    assert summary == (
+        "VPSDEPLOY_CERTBOT_READY: isolated Certbot is ready\n"
+        "Trusted certificate issued and verification passed"
+    )
+    assert "certbot-5.8.0" not in summary
+
+
+def test_log_summary_never_slices_a_line_at_the_start():
+    summary = summarize_output(
+        "old partial y3-none-any.whl\n"
+        "Local web endpoint responded\n"
+        "Only localhost HTTP verified",
+        max_chars=64,
+    )
+    assert summary == "Local web endpoint responded\nOnly localhost HTTP verified"
+    assert not summary.startswith("y3-none")
+
+
+def test_log_summary_redacts_secrets():
+    summary = summarize_output(
+        "Starting step\r\npassword=very-secret\r\nVerification passed\r\n"
+    )
+    assert "very-secret" not in summary
+    assert "password=[REDACTED]" in summary
+
+
+def test_job_runner_uses_compact_summary_for_step_output():
+    class NoisyExecutor(StubExecutor):
+        def run(self, host, script, timeout=30):
+            self.scripts.append(script)
+            return (
+                "Collecting example-package\r\n"
+                "Downloading wheel 135 kB\r\n"
+                "Successfully installed example-package\r\n"
+                "VPSDEPLOY_STEP_READY: verified\r\n"
+            )
+
+    with TemporaryDirectory() as td:
+        store = Store(str(Path(td) / "data.db"))
+        host = store.add_host({"name": "vps", "hostname": "example.com",
+                               "username": "root", "port": 22})
+        store.save_facts(host["id"], FACTS)
+        plan = build_plan("sing-box", FACTS)
+        job = store.new_job(host["id"], "sing-box", plan)
+        executor = NoisyExecutor()
+        runner = JobRunner(store, executor)
+        runner.enqueue(job, host, "DEPLOY sing-box TO example.com")
+        for _ in range(100):
+            if store.job(job["id"])["status"] == "completed":
+                break
+            sleep(0.01)
+        wait_for_worker(runner, host["id"])
+        logs = store.job(job["id"])["logs"]
+        assert "VPSDEPLOY_STEP_READY: verified" in logs
+        assert "Successfully installed" not in logs
+        assert "Downloading wheel" not in logs
 
 
 def test_modified_database_plan_cannot_execute_commands():

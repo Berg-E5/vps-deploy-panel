@@ -26,6 +26,7 @@ FACTS = {
     "OS_ID": "debian", "OS_VERSION": "12", "ARCH": "x86_64",
     "UID": "0", "SYSTEMD": "yes", "SS_AVAILABLE": "yes",
     "FREE_KB": "4000000", "XUI_PRESENT": "no", "SUI_PRESENT": "no",
+    "SUI_TCP_2095": "free", "SUI_TCP_2096": "free",
 }
 
 

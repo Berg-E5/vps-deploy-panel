@@ -23,6 +23,7 @@ FACTS = {
     "OS_ID": "ubuntu", "OS_VERSION": "26.10", "ARCH": "aarch64",
     "UID": "0", "FREE_KB": "5000000", "SYSTEMD": "yes",
     "SS_AVAILABLE": "yes", "SUI_PRESENT": "no", "XUI_PRESENT": "no",
+    "SUI_TCP_2095": "free", "SUI_TCP_2096": "free",
     "DOCKER": "no", "COMPOSE": "no", "UDP_51820": "free",
 }
 RECORD = (
@@ -101,6 +102,7 @@ def test_cert_identity_and_plan_options_are_not_injectable(bad):
 @pytest.mark.parametrize("change", [
     {"SUI_PRESENT": "yes"}, {"SUI_PRESENT": "unknown"}, {"UID": "1000"},
     {"ARCH": "mips"}, {"SYSTEMD": "no"}, {"OS_ID": "alpine"},
+    {"SUI_TCP_2095": "busy"}, {"SUI_TCP_2096": "busy"},
 ])
 def test_new_sui_cannot_overwrite_or_skip_compatibility(change):
     plan = build_plan("s-ui", dict(FACTS, **change), {

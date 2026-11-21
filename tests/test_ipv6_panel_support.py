@@ -17,7 +17,8 @@ V6_EXPANDED = "2606:4700:4700:0000:0000:0000:0000:1111"
 FACTS = {
     "OS_ID": "debian", "OS_VERSION": "12", "UID": "0", "ARCH": "x86_64",
     "SYSTEMD": "yes", "SS_AVAILABLE": "yes", "XUI_PRESENT": "no",
-    "SUI_PRESENT": "no", "FREE_KB": "1000000",
+    "SUI_PRESENT": "no", "SUI_TCP_2095": "free", "SUI_TCP_2096": "free",
+    "FREE_KB": "1000000",
 }
 
 

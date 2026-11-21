@@ -2,7 +2,7 @@ from app.catalog import build_plan, compatibility, CATALOG
 from app.executor import validate_host
 import pytest
 
-GOOD = {"OS_ID":"debian", "ARCH":"x86_64", "UID":"0", "FREE_KB":"3000000", "DOCKER":"yes", "COMPOSE":"yes", "UDP_51820":"free", "SYSTEMD":"yes", "XUI_PRESENT":"no", "SS_AVAILABLE":"yes", "GIT_AVAILABLE":"yes", "SUI_PRESENT":"no", "DOCKGE_PRESENT":"no", "DOCKGE_TCP_5001":"free"}
+GOOD = {"OS_ID":"debian", "ARCH":"x86_64", "UID":"0", "FREE_KB":"3000000", "DOCKER":"yes", "COMPOSE":"yes", "UDP_51820":"free", "SYSTEMD":"yes", "XUI_PRESENT":"no", "SS_AVAILABLE":"yes", "GIT_AVAILABLE":"yes", "SUI_PRESENT":"no", "SUI_TCP_2095":"free", "SUI_TCP_2096":"free", "DOCKGE_PRESENT":"no", "DOCKGE_TCP_5001":"free"}
 
 # 自建 Web 应用 (物流报价 / 音乐解锁) 走 nginx 反代, 需要域名和空闲的 80/443。
 WEB_FACTS = dict(GOOD, TCP_80="free", TCP_443="free", QUOTE_PRESENT="no", MUSIC_PRESENT="no")

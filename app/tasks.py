@@ -10,10 +10,56 @@ from .executor import SSHError
 from .catalog import build_plan
 
 SECRET_RE = re.compile(r'(?i)(password|passwd|token|secret|api[_ -]?key)\s*[:=]\s*[^\s]+')
+ANSI_RE = re.compile(r"\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])")
+OUTPUT_NOISE_RE = re.compile(
+    r"(?i)^(?:"
+    r"collecting\s|downloading\s|using cached\s|requirement already satisfied|"
+    r"installing collected packages:|successfully installed\s|building wheel|"
+    r"\(reading database|preparing to unpack|selecting previously unselected|"
+    r"unpacking\s|processing triggers|no services need to be restarted|"
+    r"no containers need to be restarted|no user sessions are running outdated binaries|"
+    r"no vm guests are running outdated hypervisor|hit:\d|get:\d|"
+    r"reading package lists|building dependency tree|reading state information|"
+    r"the following new packages|fetched\s|need to get|after this operation"
+    r")"
+)
+
+
+def redact(value: str) -> str:
+    return SECRET_RE.sub(r"\1=[REDACTED]", value)
 
 
 def sanitize(value: str) -> str:
-    return SECRET_RE.sub(r'\1=[REDACTED]', value)[:1600]
+    return redact(value)[:1600]
+
+
+def summarize_output(value: str, max_chars: int = 900, max_lines: int = 8) -> str:
+    """Return a readable, redacted tail without slicing through a log line."""
+    clean = ANSI_RE.sub("", redact(value or "")).replace("\r", "\n")
+    lines = []
+    for raw_line in clean.splitlines():
+        line = " ".join(raw_line.split())
+        if not line or OUTPUT_NOISE_RE.match(line):
+            continue
+        if re.fullmatch(r"[.\d,%()━\s]+", line):
+            continue
+        lines.append(line)
+    if not lines:
+        return ""
+
+    selected = []
+    used = 0
+    for line in reversed(lines):
+        cost = len(line) + (1 if selected else 0)
+        if used + cost > max_chars:
+            if not selected:
+                selected.append(line[: max(1, max_chars - 1)] + "…")
+            break
+        selected.append(line)
+        used += cost
+        if len(selected) >= max_lines:
+            break
+    return "\n".join(reversed(selected))
 
 
 class JobRunner:
@@ -66,7 +112,7 @@ class JobRunner:
                 if verified_host is None or job["plan"].get("trust_epoch", 0) != verified_host.get("trust_epoch", 0):
                     raise SSHError("执行过程中 VPS 身份发生变化，已停止后续部署步骤")
                 out = self.executor.run(host, step["script"], timeout=step["timeout"])
-                self.store.log(job_id, f'通过：{sanitize(out[-900:]) or "已完成"}')
+                self.store.log(job_id, f'通过：{summarize_output(out) or "已完成"}')
                 completed_steps = idx
             self.store.set_status(job_id, "completed")
             self.store.log(job_id, "部署执行结束。请检查项目的首次配置和网络连通性；这不等于业务已配置完成。")

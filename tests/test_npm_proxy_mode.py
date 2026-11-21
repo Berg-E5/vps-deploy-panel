@@ -17,7 +17,8 @@ from app.store import Store
 FACTS = {
     "OS_ID": "debian", "OS_VERSION": "13", "UID": "0", "ARCH": "x86_64",
     "SYSTEMD": "yes", "SS_AVAILABLE": "yes", "XUI_PRESENT": "no",
-    "SUI_PRESENT": "no", "FREE_KB": "3000000",
+    "SUI_PRESENT": "no", "SUI_TCP_2095": "free", "SUI_TCP_2096": "free",
+    "FREE_KB": "3000000",
 }
 AUTH = {"X-Admin-Token": "test-only-" + "a" * 32}
 

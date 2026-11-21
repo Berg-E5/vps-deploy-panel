@@ -290,6 +290,10 @@ def compatibility(project: str, facts: dict[str, Any], options: dict | None = No
             issues.append("S-UI 安装需要 systemd 和 ss 端口检测")
         if facts.get("SUI_PRESENT") != ("yes" if project == "s-ui-https" else "no"):
             issues.append("S-UI HTTPS 需要已安装并完成冲突检测的面板" if project == "s-ui-https" else "已有 S-UI 或尚未完成冲突检查；禁止覆盖已安装程序")
+        if project == "s-ui":
+            for port in (2095, 2096):
+                if facts.get(f"SUI_TCP_{port}") != "free":
+                    issues.append(f"TCP {port} 已被占用或无法检测；S-UI 管理端和订阅端口必须空闲")
     if project == "sing-box" and os_id not in {"debian", "ubuntu"}:
         issues.append("自动安装 sing-box 暂仅覆盖 Debian/Ubuntu APT 环境")
     if project == "wg-easy":

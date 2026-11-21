@@ -17,7 +17,8 @@ FACTS={
     "OS_ID":"ubuntu","OS_VERSION":"26.10","ARCH":"x86_64",
     "UID":"0","FREE_KB":"3200000","DOCKER":"no","COMPOSE":"no",
     "SYSTEMD":"yes","SS_AVAILABLE":"yes","UDP_51820":"free",
-    "XUI_PRESENT":"no", "SUI_PRESENT":"no", "DOCKGE_PRESENT":"no",
+    "XUI_PRESENT":"no", "SUI_PRESENT":"no", "SUI_TCP_2095":"free",
+    "SUI_TCP_2096":"free", "DOCKGE_PRESENT":"no",
 }
 
 
