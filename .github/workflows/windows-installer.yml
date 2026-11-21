@@ -74,6 +74,8 @@ jobs:
 
       - name: Build desktop and portable packages
         shell: powershell
+        env:
+          PYTHONUTF8: '1'
         run: |
           $ErrorActionPreference = 'Stop'
           python .\packaging\windows\build.py

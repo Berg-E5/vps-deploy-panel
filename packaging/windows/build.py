@@ -29,6 +29,14 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 VERSION = "1.0.2"
 
+# GitHub Actions on Windows may default stdout to cp1252. Chinese build
+# messages must never turn a successful build into a UnicodeEncodeError.
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(errors="replace")
+    except (AttributeError, OSError):
+        pass
+
 # 固定版本 + SHA-256: WebView2 SDK 只认这三个文件, 换版本必须同时换哈希。
 WEBVIEW_VERSION = "1.0.4314.35"
 WEBVIEW_SHA256 = "90778deb1b77e36292828b4b5833c9255c27533f40e0ddd55891ae718944edc4"
