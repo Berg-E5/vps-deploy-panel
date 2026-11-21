@@ -204,6 +204,9 @@ echo "环境核对通过"
 export DEBIAN_FRONTEND=noninteractive
 apt-get update
 apt-get install -y --no-install-recommends nginx python3 python3-pip ca-certificates curl certbot python3-certbot-nginx
+systemctl enable nginx >/dev/null
+systemctl restart nginx
+systemctl is-active --quiet nginx
 # openpyxl 只有「整表导入」需要, 装不上不影响站点运行
 python3 -m pip install --quiet --break-system-packages openpyxl 2>/dev/null || \
   python3 -m pip install --quiet openpyxl 2>/dev/null || \
@@ -541,6 +544,9 @@ echo "环境核对通过"
 export DEBIAN_FRONTEND=noninteractive
 apt-get update
 apt-get install -y --no-install-recommends nginx ca-certificates curl certbot python3-certbot-nginx
+systemctl enable nginx >/dev/null
+systemctl restart nginx
+systemctl is-active --quiet nginx
 nginx -v
 certbot --version
 """,

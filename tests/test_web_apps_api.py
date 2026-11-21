@@ -65,7 +65,10 @@ def test_featured_web_apps_accept_the_ui_https_payload(web_api, project, domain)
         if step["label"].startswith("核对域名解析")
     )
     assert dependency_index < tls_index
+    dependency_script = plan["steps"][dependency_index]["script"]
     tls_script = plan["steps"][tls_index]["script"]
+    assert "systemctl restart nginx" in dependency_script
+    assert "systemctl is-active --quiet nginx" in dependency_script
     assert "sport = :80" not in tls_script
     assert "systemctl is-active --quiet nginx" in tls_script
     assert "certbot plugins --authenticators" in tls_script
