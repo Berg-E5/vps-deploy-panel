@@ -12,6 +12,9 @@
 - 修复中文 Windows 下 SSH 输出编码问题。
 - 修复 Desktop-Setup/portable 缺少桌面后端入口的问题。
 - 主安装包恢复原生 Codex Worker 自动启动所需的依赖和令牌初始化。
+- S-UI 部署前检测 TCP 2095/2096；3X-UI 占用订阅端口 2096 时会在计划阶段提前阻断，不再等到远端执行才失败。
+- 修复页脚版本与实际客户端版本不一致的问题。
+- 任务日志过滤 APT/pip 进度噪声并按完整行截断，避免摘要从半个单词开始。
 
 ## 下载
 
@@ -24,5 +27,5 @@
 
 - Paramiko 升级到 5.1.0。
 - Docker Codex Worker 使用固定版本的 `requirements-codex-worker.txt`。
-- Python 测试：519 passed，82 skipped。
+- Python 测试：Ubuntu 与 Windows 全部通过。
 - GitHub Actions：tests 与 windows-installer 均通过。
