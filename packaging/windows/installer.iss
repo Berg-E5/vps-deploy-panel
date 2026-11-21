@@ -7,7 +7,7 @@
 ; 两版共用同一份运行时和同一份 app/ 代码, 后端完全一样。
 
 #ifndef AppVersion
-  #define AppVersion "1.0.6"
+  #define AppVersion "1.0.7"
 #endif
 #ifndef BundleDir
   #define BundleDir "..\..\.build\windows-desktop"

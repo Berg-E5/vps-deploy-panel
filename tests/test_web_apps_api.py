@@ -1,6 +1,10 @@
 """Production API contract for the two featured self-hosted web apps."""
 from __future__ import annotations
 
+import shutil
+import subprocess
+import sys
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -73,6 +77,14 @@ def test_featured_web_apps_accept_the_ui_https_payload(web_api, project, domain)
     assert "systemctl is-active --quiet nginx" in tls_script
     assert "certbot plugins --authenticators" in tls_script
     assert "nginx ACME" in tls_script
+    acceptance = "\n".join(
+        step["script"] for step in plan["steps"]
+        if step["label"].startswith("验收")
+    )
+    assert "301|302|307|308" in acceptance
+    assert f"https://{domain}" in acceptance
+    assert "--connect-to" in acceptance
+    assert "https://127.0.0.1" not in acceptance
 
 
 @pytest.mark.parametrize(("project", "domain", "marker"), [
@@ -92,6 +104,29 @@ def test_featured_web_apps_local_mode_really_skips_tls(web_api, project, domain,
     scripts = "\n".join(step["script"] for step in plan["steps"])
     assert marker in scripts
     assert "openssl x509" not in scripts
+    assert "301|302|307|308" not in scripts
+    assert "--connect-to" not in scripts
+
+
+@pytest.mark.skipif(sys.platform == "win32" or not shutil.which("bash"),
+                    reason="Generated remote scripts are Linux bash")
+@pytest.mark.parametrize(("project", "domain"), [
+    ("logistics-quote", "quote.example.com"),
+    ("music-unlock", "music.example.com"),
+])
+def test_featured_web_app_scripts_parse_as_bash(web_api, project, domain):
+    client, _, host = web_api
+    response = client.post("/api/jobs", headers=HEAD, json={
+        "host_id": host["id"], "project": project, "domain": domain,
+        "access_mode": "https",
+    })
+    assert response.status_code == 200, response.text
+    for step in response.json()["plan"]["steps"]:
+        result = subprocess.run(
+            ["bash", "-n"], input=step["script"], text=True,
+            capture_output=True,
+        )
+        assert result.returncode == 0, (step["label"], result.stderr)
 
 
 def test_web_app_api_requires_admin_token(web_api):

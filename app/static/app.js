@@ -1,6 +1,6 @@
 /* VPS Deploy Panel – no external JavaScript, no generated remote shell. */
 const el = (s) => document.querySelector(s);
-const CLIENT_VERSION = '1.0.6';
+const CLIENT_VERSION = '1.0.7';
 const footerVersion = el('#footer-version');
 if (footerVersion) footerVersion.textContent = 'v' + CLIENT_VERSION;
 const escapeHtml = (v) => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));

@@ -163,6 +163,25 @@ echo "TLS 预检通过（nginx ACME）"
 """,
     }
 
+
+def _vhost_http_check(domain: str, allow_https_redirect: bool) -> str:
+    if not allow_https_redirect:
+        return f"""code="$(curl -s -o /dev/null -w '%{{http_code}}' --max-time 10 -H 'Host: {domain}' http://127.0.0.1/)"
+test "$code" = "200" || {{ echo "本机 HTTP 返回 $code, 期望 200" >&2; exit 1; }}"""
+    return f"""response="$(curl -s -o /dev/null -w '%{{http_code}} %{{redirect_url}}' --max-time 10 -H 'Host: {domain}' http://127.0.0.1/)"
+code="${{response%% *}}"
+redirect="${{response#* }}"
+case "$code" in
+  200) ;;
+  301|302|307|308)
+    case "$redirect" in
+      "https://{domain}"|"https://{domain}"/*) ;;
+      *) echo "HTTP 跳转地址不属于站点 HTTPS 域名: $redirect" >&2; exit 1;;
+    esac ;;
+  *) echo "80 端口返回 $code, 期望 200 或本域名 HTTPS 跳转" >&2; exit 1;;
+esac"""
+
+
 def logistics_quote_steps(domain: str, docroot: str = "", skip_ssl: bool = False, access_mode: str = "https", tls_identity: str = "", ssh_ipv4: str | None = None, ssh_ipv6: str | None = None) -> list[dict]:
     """物流报价系统 —— systemd + nginx 反代 + 可选证书。"""
     domain = validate_domain(domain)
@@ -270,8 +289,7 @@ bash "$SRC/deploy/install.sh" '{domain}' '{docroot}' '{ssl_flag}'
       exit 1
     }}
     nginx -t
-    code="$(curl -s -o /dev/null -w '%{{http_code}}' --max-time 10 -H 'Host: {domain}' http://127.0.0.1/)"
-    test "$code" = "200" || {{ echo "80 端口返回 $code, 期望 200" >&2; exit 1; }}
+    {_vhost_http_check(domain, access_mode == "https" and not skip_ssl)}
     """,
         })
     
@@ -292,7 +310,7 @@ openssl x509 -in "$CERT" -noout -checkend 86400 >/dev/null || {{ echo "证书即
 openssl x509 -in "$CERT" -noout -checkhost "{domain}" | grep -Fq 'does match' || {{ echo "证书域名不匹配" >&2; exit 1; }}
 # Check 443 port responds
 systemctl is-active --quiet nginx || {{ echo "nginx 未运行" >&2; exit 1; }}
-code="$(curl -s -o /dev/null -w '%{{http_code}}' --max-time 10 -H 'Host: {domain}' https://127.0.0.1/ 2>/dev/null || echo 000)"
+code="$(curl -s -o /dev/null -w '%{{http_code}}' --max-time 10 --connect-to '{domain}:443:127.0.0.1:443' 'https://{domain}/' 2>/dev/null || echo 000)"
 test "$code" = "200" || {{ echo "443 端口 HTTPS 返回 $code, 期望 200" >&2; exit 1; }}
 echo "HTTPS 验收通过"
 """,
@@ -586,8 +604,7 @@ systemctl is-active --quiet nginx || {{
   exit 1
 }}
 # 必须带 Host 头走我们自己的 vhost
-code="$(curl -s -o /dev/null -w '%{{http_code}}' --max-time 10 -H 'Host: {domain}' http://127.0.0.1/)"
-test "$code" = "200" || {{ echo "本机 HTTP 返回 $code, 期望 200" >&2; exit 1; }}
+{_vhost_http_check(domain, access_mode == "https" and not skip_ssl)}
 nginx -t
 echo "验收通过"
 echo
@@ -612,7 +629,7 @@ openssl x509 -in "$CERT" -noout -checkend 86400 >/dev/null || {{ echo "证书即
 openssl x509 -in "$CERT" -noout -checkhost "{domain}" | grep -Fq 'does match' || {{ echo "证书域名不匹配" >&2; exit 1; }}
 # Check 443 port responds
 systemctl is-active --quiet nginx || {{ echo "nginx 未运行" >&2; exit 1; }}
-code="$(curl -s -o /dev/null -w '%{{http_code}}' --max-time 10 -H 'Host: {domain}' https://127.0.0.1/ 2>/dev/null || echo 000)"
+code="$(curl -s -o /dev/null -w '%{{http_code}}' --max-time 10 --connect-to '{domain}:443:127.0.0.1:443' 'https://{domain}/' 2>/dev/null || echo 000)"
 test "$code" = "200" || {{ echo "443 端口 HTTPS 返回 $code, 期望 200" >&2; exit 1; }}
 echo "HTTPS 验收通过"
 """,
