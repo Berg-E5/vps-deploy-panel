@@ -117,7 +117,7 @@ let fingerprintRequests = 0;
 let planCreations = 0;
 let xuiStatus = {installed:false,service:'absent',managed:false,port:null,access_mode:'unavailable'};
 let returnedJobs=null;
-let runtimeVersion='1.0.7';
+let runtimeVersion='1.0.8';
 let xuiReadRequests=0;
 let suiReadRequests=0;
 let suiStatus={installed:false,service:'absent',managed:false,access_mode:'unavailable'};
@@ -416,9 +416,9 @@ function fingerprintFor(label) {
   await evaluate('loadAll(true)');
   assert(made.get('.tag.alpha').textContent.includes('版本不一致'));
   assert(made.get('.tag.alpha').textContent.includes('0.3.8'));
-  runtimeVersion='1.0.7';
+  runtimeVersion='1.0.8';
   await evaluate('loadAll(true)');
-  assert(made.get('.tag.alpha').textContent==='ALPHA v1.0.7');
+  assert(made.get('.tag.alpha').textContent==='ALPHA v1.0.8');
   returnedJobs=null;
   evaluate("state.token=''");
 
@@ -571,6 +571,34 @@ function fingerprintFor(label) {
   assert(modal.innerHTML.includes('官方快速设置'));
   assert(modal.innerHTML.includes(launcherLink));
   assert(!modal.innerHTML.includes('id="approve-form"'));
+
+  // Existing self-hosted apps must be reported as protected installations,
+  // not as plans waiting for an approval that can never run.
+  const blockedQuote={...freshJob,project:'logistics-quote',plan:{...freshJob.plan,
+    project:'logistics-quote',name:'物流报价系统',executable:false,steps:[],
+    options:{domain:'quote.example.com',access_mode:'https'},
+    issues:['TCP 80 已被占用或无法检测；nginx 反代需要独占 80 端口'],
+    requires:[],warnings:[],preflight_baseline:{QUOTE_PRESENT:'no'}}};
+  fill(blockedQuote);
+  evaluate("showJob('a1b2c3d4e5f6a7b8')");
+  assert(modal.innerHTML.includes('预检未通过'));
+  assert(!modal.innerHTML.includes('等待审批'));
+  assert(!modal.innerHTML.includes('id="approve-form"'));
+  const existingQuote={...blockedQuote,plan:{...blockedQuote.plan,
+    issues:['TCP 80 已被占用或无法检测；nginx 反代需要独占 80 端口',
+      'TCP 443 已被占用或无法检测；HTTPS 需要独占 443 端口',
+      '已存在物流报价系统安装 (quote-server 服务或安装目录)，拒绝覆盖'],
+    preflight_baseline:{QUOTE_PRESENT:'yes'}}};
+  fill(existingQuote);
+  evaluate("showJob('a1b2c3d4e5f6a7b8')");
+  assert(modal.innerHTML.includes('检测到已有安装'));
+  assert(modal.innerHTML.includes('不需要重新安装'));
+  assert(modal.innerHTML.includes('href="https://quote.example.com/"'));
+  assert(modal.innerHTML.includes('本次没有执行任何安装命令'));
+  assert(!modal.innerHTML.includes('等待审批'));
+  assert(!modal.innerHTML.includes('id="approve-form"'));
+  assert(!modal.innerHTML.includes('data-action="regenerate-plan"'));
+  assert(modal.innerHTML.includes('data-action="diagnose"'));
 
   async function launchHiddify(result,{ok=true,token='test-session',hash='#a1b2c3d4e5f6a7b8'}={}){
     const status={textContent:''};

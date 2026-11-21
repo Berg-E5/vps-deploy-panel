@@ -1,24 +1,26 @@
-# VPS Deploy Panel v1.0.7
+# VPS Deploy Panel v1.0.8
 
 ## 修复
 
-- 物流报价系统和音乐解锁工具的 HTTP 验收现在接受跳转到本站 HTTPS 域名的标准 301/302/307/308。
-- 拒绝跳转到其他域名或非 HTTPS 地址，避免把错误站点跳转当成成功。
-- HTTPS 验收改用 `--connect-to` 连接 VPS 回环地址，同时保留域名 SNI 和可信证书校验。
-- 增加物流报价与音乐解锁 HTTPS 验收回归测试。
+- 物流报价系统和音乐解锁工具检测到已有安装时，任务改为显示“检测到已有安装”，不再误报为“等待审批”。
+- 已有安装任务会明确说明没有执行安装命令、没有改动 VPS，并提供现有 HTTPS 站点入口。
+- 其他无法执行的部署方案统一显示“预检未通过”，不会再给出无法完成的审批暗示。
+- 保留 80/443 端口和已有安装目录的安全保护，继续拒绝覆盖现有服务、数据和证书。
+- 增加已有物流报价安装的 UI 回归测试。
 
-本版本包含 v1.0.6 的全部修复。
+本版本包含 v1.0.7 的全部修复。
 
 ## 下载
 
-- `VPSDeployPanel-1.0.7-Setup.exe`：主安装包，推荐。
-- `VPSDeployPanel-1.0.7-Desktop-Setup.exe`：原生桌面窗口版。
-- `VPSDeployPanel-1.0.7-portable.zip`：免安装版。
+- `VPSDeployPanel-1.0.8-Setup.exe`：主安装包，推荐。
+- `VPSDeployPanel-1.0.8-Desktop-Setup.exe`：原生桌面窗口版。
+- `VPSDeployPanel-1.0.8-portable.zip`：免安装版。
 - `SHA256SUMS.txt`：发布资产 SHA-256 校验表。
 
 ## 验证
 
-- 物流报价和音乐解锁 HTTPS 验收脚本回归测试通过。
-- 公网实测物流报价：HTTP 301 → HTTPS，主页与管理页 HTTP 200，数据接口未登录 401。
+- 已有物流报价安装的状态与入口 UI 测试通过。
+- 物流报价公网实测：HTTP 301 → HTTPS，主页与管理页 HTTP 200。
+- 部署验收、审批预检和 UI 回归测试通过。
 - Ubuntu 与 Windows Python 测试通过。
 - Windows 自动更新、启动器和安装包测试通过。

@@ -1,6 +1,6 @@
 /* VPS Deploy Panel – no external JavaScript, no generated remote shell. */
 const el = (s) => document.querySelector(s);
-const CLIENT_VERSION = '1.0.7';
+const CLIENT_VERSION = '1.0.8';
 const footerVersion = el('#footer-version');
 if (footerVersion) footerVersion.textContent = 'v' + CLIENT_VERSION;
 const escapeHtml = (v) => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -87,11 +87,22 @@ async function loadAll(silent=false){
 function stateText(status){return ({planned:'等待审批',queued:'已排队',running:'正在执行',completed:'执行完成',failed:'执行失败',interrupted:'执行中断',partial:'部分完成 · 等待验收',invalidated:'服务器已重装，计划失效'})[status]||status;}
 function hiddifyPlanBlocked(job){return job.project==='hiddify'&&job.status==='planned'&&job.plan?.executable===false;}
 function isExistingHiddifyPlan(job){return hiddifyPlanBlocked(job)&&job.plan.preflight_baseline?.HIDDIFY_STATE==='existing';}
-function jobStatusText(job){
- if(isExistingHiddifyPlan(job))return '检测到已有安装';
- return hiddifyPlanBlocked(job)?'预检未通过':stateText(job.status);
+function isExistingWebAppPlan(job){
+ const key=job.project==='logistics-quote'?'QUOTE_PRESENT':job.project==='music-unlock'?'MUSIC_PRESENT':'';
+ if(!key||job.status!=='planned'||job.plan?.executable!==false||job.plan?.steps?.length)return false;
+ const host=state.hosts.find(h=>h.id===job.host_id);
+ return job.plan?.preflight_baseline?.[key]==='yes'||host?.facts?.[key]==='yes';
 }
-function chip(job){const {status}=job;const cls=status==='completed'?'success':status==='failed'||status==='interrupted'||status==='invalidated'?'error':'warn';return `<span class="chip ${cls}">${escapeHtml(jobStatusText(job))}</span>`;}
+function existingWebAppUrl(job){
+ if(job.plan?.options?.access_mode!=='https')return '';
+ const domain=String(job.plan?.options?.domain||'');
+ return /^[a-z0-9](?:[a-z0-9.-]{0,251}[a-z0-9])?$/i.test(domain)?`https://${domain}/`:'';
+}
+function jobStatusText(job){
+ if(isExistingHiddifyPlan(job)||isExistingWebAppPlan(job))return '检测到已有安装';
+ return job.status==='planned'&&job.plan?.executable===false?'预检未通过':stateText(job.status);
+}
+function chip(job){const {status}=job;const installed=isExistingHiddifyPlan(job)||isExistingWebAppPlan(job);const cls=status==='completed'||installed?'success':status==='failed'||status==='interrupted'||status==='invalidated'?'error':'warn';return `<span class="chip ${cls}">${escapeHtml(jobStatusText(job))}</span>`;}
 const symbol={"3x-ui":"▣","3x-ui-https":"🔒","sing-box":"⬡","hysteria2":"ϟ","wg-easy":"◈","s-ui":"⬡","s-ui-https":"🔒","dockge":"▣","hiddify":"▣","logistics-quote":"◫","music-unlock":"♫","hermes-agent":"☤"};
 // Single source of truth: public projects, excluding internal upgrade recipes.
 function catalogProjects(catalog){return Object.entries(catalog||{}).filter(([,project])=>project&&!project.internal);}
@@ -290,6 +301,7 @@ function isExistingXuiPlan(job){
 }
 function jobLabel(job){
  if(isExistingXuiPlan(job))return '已安装 · 无需审批';
+ if(isExistingWebAppPlan(job))return '检测到已有安装';
  if(hiddifyPlanBlocked(job))return jobStatusText(job);
  if(job.status==='planned'&&!job.plan?.executable)return '当前不能自动部署';
  return stateText(job.status);
@@ -300,6 +312,7 @@ function historicalHttpsFailure(job){
 function jobNextAction(job){
  if(isExistingXuiPlan(job))return '查看已安装面板';
  if(isExistingHiddifyPlan(job))return '查看安装状态';
+ if(isExistingWebAppPlan(job))return '查看现有部署';
  if(historicalHttpsFailure(job))return '生成最新版 HTTPS 修复方案';
  if(job.status==='planned'&&!job.plan?.executable)return '查看原因';
  if(job.status==='planned'&&job.needs_refresh===true)return '更新为最新安全部署方案';
@@ -318,7 +331,7 @@ function hostTaskLink(job){
  return `<button type="button" class="server-history-item ${job.status==='planned'&&job.plan?.executable&&!stale?'is-pending':''}" data-action="${openExisting?'installed-xui':updateFailedHttps?'regenerate-plan':planNeedsUpdate(job)&&!stale&&job.plan?.executable?'regenerate-plan':'job'}" data-id="${escapeHtml(openExisting?job.host_id:job.id)}"
     aria-label="${escapeHtml(name)}，${escapeHtml(stale?'已失效':jobLabel(job))}，${escapeHtml(action)}">
    <span class="server-task-icon" aria-hidden="true">${symbol[job.project]||'▣'}</span>
-   <span class="server-task-title"><strong>${escapeHtml(name)}</strong><small>${escapeHtml(stale?'服务器重装前的历史':isExistingXuiPlan(job)?'面板已存在，不需要执行安装审批':historicalHttpsFailure(job)?'旧版脚本的失败记录，不代表新版仍存在相同问题':isPlanExpired(job)&&job.plan?.executable?'审批计划已过期':jobLabel(job))} · ${escapeHtml(job.created_at.slice(0,16).replace('T',' '))}</small></span>
+   <span class="server-task-title"><strong>${escapeHtml(name)}</strong><small>${escapeHtml(stale?'服务器重装前的历史':isExistingXuiPlan(job)?'面板已存在，不需要执行安装审批':isExistingWebAppPlan(job)?'检测到已有安装，系统不会覆盖':historicalHttpsFailure(job)?'旧版脚本的失败记录，不代表新版仍存在相同问题':isPlanExpired(job)&&job.plan?.executable?'审批计划已过期':jobLabel(job))} · ${escapeHtml(job.created_at.slice(0,16).replace('T',' '))}</small></span>
    <span class="server-task-next">${escapeHtml(action)} <span aria-hidden="true">→</span></span></button>`;
 }
 function openHostConsole(id,tab='overview'){
@@ -1363,6 +1376,7 @@ function showJob(id){
  const p=job.plan,host=state.hosts.find(h=>h.id===job.host_id);
  const stale=(p.trust_epoch||0)!==(host?.trust_epoch||0);
  const existingHiddify=isExistingHiddifyPlan(job);
+ const existingWebApp=isExistingWebAppPlan(job);
  const sameHiddifyHost=job.project==='hiddify'&&!stale&&host&&host.hostname===p.hostname;
  const recheckHiddify=sameHiddifyHost&&hiddifyPlanBlocked(job)&&!existingHiddify;
  const openInstalledHiddify=sameHiddifyHost&&job.status==='completed';
@@ -1372,7 +1386,7 @@ function showJob(id){
    /SSH_(HANDSHAKE_FAILED|CONNECT_TIMEOUT|CONNECTION_REFUSED|NETWORK_ERROR|AUTH_FAILED)/.test(String(job.error||job.logs||''));
  let html=modalHead(`${p.name} · 任务`)+`<div class="toolbar">${chip(job)}<span class="chip">${escapeHtml(host?.name||p.hostname)}</span><span class="chip">${escapeHtml(p.options?.panel_port||'')}${p.options?.panel_port?' / TCP':''}</span></div>`;
  if(stale)html+='<div class="modal-tip warning">此任务属于服务器重装前的系统。旧登录信息和审批计划已失效，必须重新检测并创建新的部署方案。</div>';
- if(p.issues.length&&!isExistingXuiPlan(job)&&!existingHiddify)html+=`<div class="modal-tip warning">${p.issues.map(escapeHtml).join('；')}</div>`;
+ if(p.issues.length&&!isExistingXuiPlan(job)&&!existingHiddify&&!existingWebApp)html+=`<div class="modal-tip warning">${p.issues.map(escapeHtml).join('；')}</div>`;
  if(existingHiddify&&inspectHiddify)html+='<div class="modal-tip">检测到 Hiddify 安装文件。请检查服务的当前运行状态。</div>';
  if(inspectHiddify)html+='<div id="hiddify-live-status" role="status"></div>';
  if(recheckHiddify)html+='<p class="helptext">上面是这份方案生成时的检查结果。重新检测会生成新方案，安装前仍需你审批。</p>';
@@ -1415,6 +1429,18 @@ function showJob(id){
    html+=`<section class="server-next-action is-ready"><span class="server-next-kicker">已安装 · 无需审批</span>
      <h3>3X-UI 已存在，不需要重新安装</h3><p>此历史方案没有安装步骤，因此无法执行。直接通过已验证 SSH 读取现有面板信息；仅在修改配置时才需要确认。</p>
      <button class="btn primary" data-action="installed-xui" data-id="${job.host_id}">查看现有 3X-UI 面板 →</button>
+   </section>`;
+ }else if(existingWebApp&&!stale){
+   const appName=job.project==='logistics-quote'?'物流报价系统':'音乐解锁工具';
+   const url=existingWebAppUrl(job);
+   html+=`<section class="server-next-action is-ready"><span class="server-next-kicker">检测到已有安装 · 已阻止覆盖</span>
+     <h3>${escapeHtml(appName)}已经存在，不需要重新安装</h3>
+     <p>本次没有执行任何安装命令，也没有改动 VPS。80/443 被占用通常是现有 nginx 和站点正在运行；为避免覆盖现有数据、证书和配置，面板不会重复部署。</p>
+     ${url?`<div class="modal-actions"><a class="btn primary" href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">打开现有站点 ↗</a></div>`:'<div class="modal-tip">这条任务记录使用本机访问模式，请通过 SSH 隧道访问现有站点。</div>'}
+     <div class="modal-tip">如果现有站点无法访问，再使用“AI 只读排障”检查服务；不要直接删除站点文件或重复安装。</div>
+     <div class="modal-actions"><button class="btn subtle" data-action="diagnose" data-id="${escapeHtml(job.id)}">AI 只读排障</button>
+       <button class="btn danger" data-action="delete-job" data-id="${escapeHtml(job.id)}">删除记录</button>
+       <button class="btn subtle" data-action="close-modal">关闭</button></div>
    </section>`;
  }else if(historicalHttpsFailure(job)&&!stale){
    html+=`<section class="server-next-action pending"><span class="server-next-kicker">旧版执行记录 · 当前模板已修复</span>

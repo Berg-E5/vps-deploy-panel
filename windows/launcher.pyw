@@ -257,7 +257,7 @@ def check_for_updates() -> dict:
         latest_version = str(data.get("tag_name", "")).strip().lstrip("v")
         if not re.fullmatch(r"\d+\.\d+\.\d+", latest_version):
             raise ValueError("Release 版本号格式不正确")
-        current_version = "1.0.7"
+        current_version = "1.0.8"
         asset = _select_release_asset(data, latest_version, str(data.get("tag_name", "")))
         return {
             "has_update": _version_greater(latest_version, current_version),
@@ -272,7 +272,7 @@ def check_for_updates() -> dict:
 
 
 def _version_greater(a: str, b: str) -> bool:
-    """简单语义化版本比较：1.0.7 > 1.0.6"""
+    """简单语义化版本比较：1.0.8 > 1.0.7"""
     try:
         a_parts = [int(x) for x in a.split(".")]
         b_parts = [int(x) for x in b.split(".")]
