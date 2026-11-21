@@ -61,6 +61,17 @@ def test_windows_installer_contains_desktop_backend_and_codex_requirements():
     assert "VPSDEPLOY_LOCAL_PORT" in launcher
 
 
+def test_packaging_icon_entrypoint_delegates_to_valid_generator(tmp_path):
+    output = tmp_path / "icon.ico"
+    subprocess.run(
+        [sys.executable, str(ROOT / "packaging" / "windows" / "make-icon.py"), str(output)],
+        cwd=ROOT,
+        check=True,
+        timeout=30,
+    )
+    assert output.read_bytes()[:4] == b"\x00\x00\x01\x00"
+
+
 def test_release_workflow_builds_and_publishes_all_windows_assets():
     workflow = (ROOT / ".github" / "workflows" / "windows-installer.yml").read_text(encoding="utf-8")
     assert "packaging\\windows\\build.py" in workflow
@@ -76,10 +87,10 @@ def test_current_version_is_consistent_between_server_frontend_and_docs():
     main = (root / "app" / "main.py").read_text(encoding="utf-8")
     html = (root / "app" / "static" / "index.html").read_text(encoding="utf-8")
     js = (root / "app" / "static" / "app.js").read_text(encoding="utf-8")
-    assert 'version="1.0.2"' in main
-    assert 'version="1.0.2"' in main
-    assert "ALPHA v1.0.2" in html
-    assert "const CLIENT_VERSION = '1.0.2'" in js
+    assert 'version="1.0.3"' in main
+    assert 'CURRENT_VERSION = "1.0.3"' in main
+    assert "ALPHA v1.0.3" in html
+    assert "const CLIENT_VERSION = '1.0.3'" in js
     assert 'id="footer-version"' in html
     assert "VPS Deploy Panel v1.0.0" not in html
     assert "VPS Deploy Panel v1.0.0" not in js
