@@ -21,9 +21,9 @@ import re
 # ---------------------------------------------------------------- 固定版本
 
 LOGISTICS_QUOTE_REPO = "Berg-E5/logistics-quote"
-LOGISTICS_QUOTE_COMMIT = "4c71d24f557999ac9e607fe4b4ecb28e2d5df2fc"
+LOGISTICS_QUOTE_COMMIT = "1543b22b2a74083fb33f3a2056e890a770d9863f"
 LOGISTICS_QUOTE_INSTALL_SHA256 = (
-    "c3a35fa0bc5577e345952ba79ebdede9eca1d55cc54aaf6dccc42d8942fca871"
+    "803f72f5c1dc3cb843711add03493911425e39beca09dad0a0ae6729b248503a"
 )
 
 HERMES_AGENT_REPO = "NousResearch/hermes-agent"
@@ -289,6 +289,12 @@ bash "$SRC/deploy/install.sh" '{domain}' '{docroot}' '{ssl_flag}'
       exit 1
     }}
     nginx -t
+    CONF="$(readlink -f /etc/nginx/sites-enabled/{domain})"
+    test -n "$CONF" && test -f "$CONF" || {{ echo "找不到 nginx 站点配置" >&2; exit 1; }}
+    grep -Eq '^[[:space:]]*client_max_body_size[[:space:]]+64m;' "$CONF" || {{
+      echo "nginx 未配置 64MB 上传上限，整表导入会返回 HTTP 413" >&2
+      exit 1
+    }}
     {_vhost_http_check(domain, access_mode == "https" and not skip_ssl)}
     """,
         })

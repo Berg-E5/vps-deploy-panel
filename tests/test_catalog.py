@@ -195,6 +195,8 @@ def test_quote_app_acceptance_reads_port_from_file():
     plan = build_plan('logistics-quote', WEB_FACTS, _options('logistics-quote'))
     acceptance = '\n'.join(s['script'] for s in plan['steps'] if '验收' in s['label'])
     assert 'data/port' in acceptance
+    assert 'client_max_body_size' in acceptance
+    assert '64m' in acceptance
 
 
 def test_web_app_install_pins_source_repo():
