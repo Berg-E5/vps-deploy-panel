@@ -27,7 +27,7 @@ import zipfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-VERSION = "1.0.1"
+VERSION = "1.0.2"
 
 # 固定版本 + SHA-256: WebView2 SDK 只认这三个文件, 换版本必须同时换哈希。
 WEBVIEW_VERSION = "1.0.4314.35"

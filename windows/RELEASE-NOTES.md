@@ -1,7 +1,28 @@
-Windows 安装包 (VPS Deploy Panel)
+# VPS Deploy Panel v1.0.2
 
-- 自带 Python 运行时与全部依赖, 目标机器不需要预先装 Python 或 Git
-- 装到当前用户目录, 不需要管理员权限
-- 可选勾选「登录时自动启动」
-- 面板只监听 127.0.0.1:8787
-- 卸载会停掉后台进程并移除计划任务; 用户数据保留在 %LOCALAPPDATA%\VPSDeployPanel
+## 修复
+
+- 恢复物流报价系统与音乐解锁工具的部署计划生成。
+- HTTPS 证书固定使用站点域名，本机模式会正确跳过证书申请。
+- 自动更新只接受精确版本的主安装包，并校验 GitHub SHA-256 digest。
+- 更新检查与安装接口要求管理员令牌，不再接受任意安装包 URL。
+- AI 只读排障关闭 shell、网络、MCP 等工具，并使用临时会话。
+- 修改证书域名时会失效待审批的 S-UI 计划。
+- 修复 8787 端口被占用后，回退端口无法本机自动登录。
+- 修复中文 Windows 下 SSH 输出编码问题。
+- 修复 Desktop-Setup/portable 缺少桌面后端入口的问题。
+- 主安装包恢复原生 Codex Worker 自动启动所需的依赖和令牌初始化。
+
+## 下载
+
+- `VPSDeployPanel-1.0.2-Setup.exe`：主安装包，推荐。
+- `VPSDeployPanel-1.0.2-Desktop-Setup.exe`：原生桌面窗口版。
+- `VPSDeployPanel-1.0.2-portable.zip`：免安装版。
+- `SHA256SUMS.txt`：发布资产 SHA-256 校验表。
+
+## 依赖与验证
+
+- Paramiko 升级到 5.1.0。
+- Docker Codex Worker 使用固定版本的 `requirements-codex-worker.txt`。
+- Python 测试：519 passed，82 skipped。
+- GitHub Actions：tests 与 windows-installer 均通过。

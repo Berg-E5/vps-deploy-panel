@@ -14,7 +14,7 @@
 
 #define AppName "VPS Deploy Panel"
 #define AppNameLower "vpsdeploypanel"
-#define AppVersion "1.0.1"
+#define AppVersion "1.0.2"
 #define AppPublisher "VPS Deploy Panel"
 #define AppUrl "https://github.com/Berg-E5/vps-deploy-panel"
 #define AppDocsUrl "https://berg-e5.github.io/vps-deploy-panel/"

@@ -1,4 +1,5 @@
 name: windows-installer
+
 on:
   push:
     tags:
@@ -8,11 +9,15 @@ on:
   pull_request:
     paths:
       - 'windows/**'
+      - 'packaging/windows/**'
       - 'app/**'
       - 'requirements.txt'
+      - 'requirements-codex-worker.txt'
   workflow_dispatch:
+
 permissions:
   contents: write
+
 jobs:
   build-installer:
     runs-on: windows-latest
@@ -38,107 +43,187 @@ jobs:
           }
           if (-not $iscc) {
             choco install innosetup --no-progress --yes
-            # choco may install it outside the current session PATH; search the usual locations
             $iscc = Get-Command ISCC.exe -ErrorAction SilentlyContinue
             if (-not $iscc) {
-                $iscc = @(
-                    (Join-Path $env:LOCALAPPDATA 'Programs\Inno Setup 6\ISCC.exe'),
-                    (Join-Path $env:ProgramFiles 'Inno Setup 6\ISCC.exe'),
-                    (Join-Path ${env:ProgramFiles(x86)} 'Inno Setup 6\ISCC.exe')
-                ) | Where-Object { Test-Path $_ } | Select-Object -First 1
+              $iscc = @(
+                (Join-Path $env:LOCALAPPDATA 'Programs\Inno Setup 6\ISCC.exe'),
+                (Join-Path $env:ProgramFiles 'Inno Setup 6\ISCC.exe'),
+                (Join-Path ${env:ProgramFiles(x86)} 'Inno Setup 6\ISCC.exe')
+              ) | Where-Object { Test-Path $_ } | Select-Object -First 1
             }
             if (-not $iscc) { throw 'Inno Setup still unavailable after install' }
           }
-          # Do not probe the version with "ISCC.exe /?": it writes usage to stderr,
-          # which ErrorActionPreference=Stop turns into a terminating error.
           Write-Host "Inno Setup: $($iscc.Source)"
 
-      - name: Build Windows installer
+      - name: Read application version
+        id: version
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $source = [System.IO.File]::ReadAllText((Join-Path $env:GITHUB_WORKSPACE 'windows\installer.iss'))
+          $match = [regex]::Match($source, '#define AppVersion "([0-9]+\.[0-9]+\.[0-9]+)"')
+          if (-not $match.Success) { throw 'cannot read AppVersion from windows/installer.iss' }
+          "version=$($match.Groups[1].Value)" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+
+      - name: Build browser installer
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
           & .\windows\build-installer.ps1
           if ($LASTEXITCODE -ne 0) { throw "installer build failed: $LASTEXITCODE" }
 
-      - name: Verify installer output
+      - name: Build desktop and portable packages
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
-          $setup = Get-ChildItem -Path .\dist -Filter '*Setup.exe' | Select-Object -First 1
-          if (-not $setup) { throw 'no installer produced' }
-          if ($setup.Length -lt 5MB) { throw "installer suspiciously small: $($setup.Length)" }
-          Write-Host "installer: $($setup.Name) $([math]::Round($setup.Length / 1MB, 1)) MB"
+          python .\packaging\windows\build.py
+          if ($LASTEXITCODE -ne 0) { throw "desktop build failed: $LASTEXITCODE" }
 
-      - name: Install and smoke-test the installer
+      - name: Verify release artifacts
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
-          $setup = (Get-ChildItem -Path .\dist -Filter '*Setup.exe' | Select-Object -First 1).FullName
-          # Install into a scratch directory; never touch an existing install.
-          # Start-Process -Wait matters: Inno Setup returns before all files are
-          # copied, so checking right after the call can see a half-extracted
-          # runtime and fail with a bogus "No module named 'urllib'".
+          $version = '${{ steps.version.outputs.version }}'
+          $expected = @(
+            "VPSDeployPanel-$version-Setup.exe",
+            "VPSDeployPanel-$version-Desktop-Setup.exe",
+            "VPSDeployPanel-$version-portable.zip"
+          )
+          foreach ($name in $expected) {
+            $path = Join-Path '.\dist' $name
+            if (-not (Test-Path $path -PathType Leaf)) { throw "missing release artifact: $name" }
+            $size = (Get-Item $path).Length
+            if ($size -lt 5MB) { throw "$name is suspiciously small: $size" }
+            Write-Host "$name $([math]::Round($size / 1MB, 1)) MB"
+          }
+
+      - name: Install and smoke-test browser installer
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $version = '${{ steps.version.outputs.version }}'
+          $setup = (Resolve-Path ".\dist\VPSDeployPanel-$version-Setup.exe").Path
+          $appDir = Join-Path $env:RUNNER_TEMP 'vpsdeploy-test'
           $process = Start-Process -FilePath $setup -ArgumentList @(
             '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/SP-',
-            "/DIR=$env:RUNNER_TEMP\vpsdeploy-test", '/TASKS=autostart'
+            "/DIR=$appDir", '/TASKS=autostart'
           ) -Wait -PassThru
           if ($process.ExitCode -ne 0) { throw "installer exit code $($process.ExitCode)" }
-          $appDir = Join-Path $env:RUNNER_TEMP 'vpsdeploy-test'
           $python = Join-Path $appDir 'runtime\python\python.exe'
           if (-not (Test-Path $python)) { throw 'bundled runtime missing after install' }
-          # Verify dependencies via a file: PowerShell strips the quotes inside -c.
-          # Use a line array, not a here-string: a here-string terminator must start
-          # at column 0, which truncates the YAML block scalar.
+          if (-not (Test-Path (Join-Path $appDir 'requirements-codex-worker.txt'))) {
+            throw 'Codex worker requirements missing after install'
+          }
           $verify = Join-Path $env:RUNNER_TEMP 'verify_deps.py'
           @('import fastapi, uvicorn, pydantic, httpx, paramiko, keyring', 'print("deps ok")') |
-              Set-Content -Path $verify -Encoding UTF8
+            Set-Content -Path $verify -Encoding UTF8
           & $python $verify
           if ($LASTEXITCODE -ne 0) { throw 'dependency import failed after install' }
           & (Join-Path $appDir 'PanelState.ps1') -Status
-          # Uninstall, then confirm nothing is left behind
           $uninstaller = Get-ChildItem -Path $appDir -Filter 'unins*.exe' | Select-Object -First 1
           if (-not $uninstaller) { throw 'uninstaller missing' }
           $uninstall = Start-Process -FilePath $uninstaller.FullName -ArgumentList @(
             '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART'
           ) -Wait -PassThru
           if ($uninstall.ExitCode -ne 0) { throw "uninstaller exit code $($uninstall.ExitCode)" }
-          # Inno Setup can leave the directory behind for a moment after exit
           for ($i = 0; $i -lt 20 -and (Test-Path $appDir); $i++) { Start-Sleep -Seconds 1 }
           if (Test-Path $appDir) { throw "uninstall left files behind: $appDir" }
-          Write-Host 'install + uninstall round-trip ok.'
+          Write-Host 'browser installer install + uninstall round-trip ok.'
 
-      - name: Upload installer
+      - name: Install and inspect desktop package
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $version = '${{ steps.version.outputs.version }}'
+          $setup = (Resolve-Path ".\dist\VPSDeployPanel-$version-Desktop-Setup.exe").Path
+          $appDir = Join-Path $env:RUNNER_TEMP 'vpsdeploy-desktop-test'
+          $process = Start-Process -FilePath $setup -ArgumentList @(
+            '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/SP-', "/DIR=$appDir"
+          ) -Wait -PassThru
+          if ($process.ExitCode -ne 0) { throw "desktop installer exit code $($process.ExitCode)" }
+          foreach ($relative in @('app\desktop.py', 'requirements-codex-worker.txt', 'VPSDeployPanel.exe')) {
+            if (-not (Test-Path (Join-Path $appDir $relative))) { throw "desktop bundle missing: $relative" }
+          }
+          $uninstaller = Get-ChildItem -Path $appDir -Filter 'unins*.exe' | Select-Object -First 1
+          if (-not $uninstaller) { throw 'desktop uninstaller missing' }
+          $uninstall = Start-Process -FilePath $uninstaller.FullName -ArgumentList @(
+            '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART'
+          ) -Wait -PassThru
+          if ($uninstall.ExitCode -ne 0) { throw "desktop uninstaller exit code $($uninstall.ExitCode)" }
+          Write-Host 'desktop package contents verified.'
+
+      - name: Generate release checksums
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $version = '${{ steps.version.outputs.version }}'
+          $names = @(
+            "VPSDeployPanel-$version-Setup.exe",
+            "VPSDeployPanel-$version-Desktop-Setup.exe",
+            "VPSDeployPanel-$version-portable.zip"
+          )
+          $lines = foreach ($name in $names) {
+            $path = Resolve-Path (Join-Path '.\dist' $name)
+            $hash = (Get-FileHash -Path $path -Algorithm SHA256).Hash.ToLowerInvariant()
+            "$hash  $name"
+          }
+          [System.IO.File]::WriteAllLines(
+            (Join-Path (Resolve-Path '.\dist').Path 'SHA256SUMS.txt'),
+            $lines,
+            [System.Text.UTF8Encoding]::new($false)
+          )
+
+      - name: Upload release artifacts
         if: startsWith(github.ref, 'refs/tags/v')
         uses: actions/upload-artifact@v4
         with:
-          name: VPSDeployPanel-Windows-Setup
-          path: dist/*Setup.exe
+          name: VPSDeployPanel-Windows-${{ steps.version.outputs.version }}
+          path: |
+            dist/VPSDeployPanel-*-Setup.exe
+            dist/VPSDeployPanel-*-portable.zip
+            dist/SHA256SUMS.txt
           if-no-files-found: error
 
-      - name: Publish the installer as a GitHub release
+      - name: Publish GitHub release
         if: startsWith(github.ref, 'refs/tags/v')
         shell: powershell
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           $ErrorActionPreference = 'Stop'
-          $setup = Get-ChildItem -Path .\dist -Filter '*Setup.exe' | Select-Object -First 1
+          $version = '${{ steps.version.outputs.version }}'
           $tag = $env:GITHUB_REF_NAME
-          # If the release already exists, replace the asset instead of failing.
-          # gh writes to stderr when the release is missing, and with
-          # ErrorActionPreference=Stop that would be a terminating error, so
-          # relax it for this call and rely on the exit code instead.
+          if ($tag -ne "v$version") { throw "tag $tag does not match AppVersion v$version" }
+          $assets = @(
+            ".\dist\VPSDeployPanel-$version-Setup.exe",
+            ".\dist\VPSDeployPanel-$version-Desktop-Setup.exe",
+            ".\dist\VPSDeployPanel-$version-portable.zip",
+            ".\dist\SHA256SUMS.txt"
+          ) | ForEach-Object { (Resolve-Path $_).Path }
+
           $ErrorActionPreference = 'Continue'
           $existing = gh release view $tag --repo $env:GITHUB_REPOSITORY --json tagName 2>$null
           $found = ($LASTEXITCODE -eq 0) -and [bool]$existing
           $ErrorActionPreference = 'Stop'
+
           if ($found) {
-            gh release upload $tag $setup.FullName --repo $env:GITHUB_REPOSITORY --clobber
+            gh release upload $tag $assets --repo $env:GITHUB_REPOSITORY --clobber
           } else {
-            # Release notes come from a repo file: a here-string terminator must start
-            # at column 0, which truncates the YAML block scalar.
             $notesFile = Join-Path $env:RUNNER_TEMP 'release-notes.md'
             Copy-Item -Path '.\windows\RELEASE-NOTES.md' -Destination $notesFile -Force
-            gh release create $tag $setup.FullName --repo $env:GITHUB_REPOSITORY --title "VPS Deploy Panel $tag (Windows Setup)" --notes-file $notesFile
+            gh release create $tag $assets --repo $env:GITHUB_REPOSITORY `
+              --title "VPS Deploy Panel $tag" --notes-file $notesFile --latest
           }
           Write-Host "release published: $tag"
+
+          # Remove stale main-installer assets from an existing release. This
+          # prevents older clients from selecting the wrong first Setup.exe.
+          if ($found) {
+            $release = gh release view $tag --repo $env:GITHUB_REPOSITORY --json assets | ConvertFrom-Json
+            foreach ($asset in $release.assets) {
+              if ($asset.name -match '^VPSDeployPanel-[0-9]+\.[0-9]+\.[0-9]+-Setup\.exe$' -and
+                  $asset.name -ne "VPSDeployPanel-$version-Setup.exe") {
+                gh release delete-asset $tag $asset.name --repo $env:GITHUB_REPOSITORY --yes
+              }
+            }
+          }

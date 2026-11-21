@@ -61,14 +61,24 @@ def test_windows_installer_contains_desktop_backend_and_codex_requirements():
     assert "VPSDEPLOY_LOCAL_PORT" in launcher
 
 
+def test_release_workflow_builds_and_publishes_all_windows_assets():
+    workflow = (ROOT / ".github" / "workflows" / "windows-installer.yml").read_text(encoding="utf-8")
+    assert "packaging\\windows\\build.py" in workflow
+    assert "VPSDeployPanel-$version-Desktop-Setup.exe" in workflow
+    assert "VPSDeployPanel-$version-portable.zip" in workflow
+    assert "SHA256SUMS.txt" in workflow
+    assert "gh release create" in workflow
+    assert "gh release upload" in workflow
+
+
 def test_current_version_is_consistent_between_server_frontend_and_docs():
     root = Path(__file__).resolve().parents[1]
     main = (root / "app" / "main.py").read_text(encoding="utf-8")
     html = (root / "app" / "static" / "index.html").read_text(encoding="utf-8")
     js = (root / "app" / "static" / "app.js").read_text(encoding="utf-8")
-    assert 'version="1.0.1"' in main
-    assert 'version="1.0.1"' in main
-    assert "ALPHA v1.0.1" in html
-    assert "const CLIENT_VERSION = '1.0.1'" in js
+    assert 'version="1.0.2"' in main
+    assert 'version="1.0.2"' in main
+    assert "ALPHA v1.0.2" in html
+    assert "const CLIENT_VERSION = '1.0.2'" in js
     assert "api('/health')" in js
     assert "版本不一致" in js

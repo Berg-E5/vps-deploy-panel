@@ -57,7 +57,7 @@ ADMIN_TOKEN = env("ADMIN_TOKEN", "")
 if len(ADMIN_TOKEN) < 24 or ADMIN_TOKEN.startswith("REPLACE_"):
     raise RuntimeError("必须配置长度至少 24 字符的 VPSDEPLOY_ADMIN_TOKEN")
 
-CURRENT_VERSION = "1.0.1"
+CURRENT_VERSION = "1.0.2"
 GITHUB_RELEASE_API = "https://api.github.com/repos/Berg-E5/vps-deploy-panel/releases/latest"
 RELEASE_DOWNLOAD_PREFIX = "https://github.com/Berg-E5/vps-deploy-panel/releases/download/"
 WINDOWS_UPDATER = os.name == "nt"
@@ -77,7 +77,7 @@ async def native_codex_lifespan(_application: FastAPI):
         stop_native_codex()
 
 
-app = FastAPI(title="VPS Deploy Panel", version="1.0.1",
+app = FastAPI(title="VPS Deploy Panel", version="1.0.2",
               lifespan=native_codex_lifespan)
 LOCAL_AUTO_LOGIN = env_flag("LOCAL_AUTO_LOGIN", "0")
 LOCAL_PORT = env_int("LOCAL_PORT", 0)
