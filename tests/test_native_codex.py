@@ -3,6 +3,9 @@
 All process and SDK actions are mocked; these tests work in Linux/Windows CI.
 """
 import os
+import shutil
+import subprocess
+import sys
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -79,7 +82,7 @@ class FakeChild:
         self.done = True
 
 
-def test_native_worker_copies_only_api_module_and_preserves_login(monkeypatch, tmp_path):
+def test_native_worker_copies_required_modules_and_preserves_login(monkeypatch, tmp_path):
     monkeypatch.setenv("VPSDEPLOY_WORKER_TOKEN", "native-test-token-" + "x" * 32)
     monkeypatch.setenv("VPSDEPLOY_ADMIN_TOKEN", "must-not-enter-worker")
     monkeypatch.setenv("VPSDEPLOY_SSH_KEY_FILE", "must-not-enter-worker")
@@ -104,7 +107,8 @@ def test_native_worker_copies_only_api_module_and_preserves_login(monkeypatch, t
         return child
     monkeypatch.setattr(manager, "_spawn", fake_spawn)
     manager._run()
-    assert (tmp_path / "isolated" / "runtime" / "app" / "ai_worker.py").is_file()
+    for name in native_codex.WORKER_SOURCE_FILES:
+        assert (tmp_path / "isolated" / "runtime" / "app" / name).is_file()
     assert (tmp_path / "isolated" / "auth" / "config.toml").read_text(encoding="utf-8").find(
         "prefer_mxc = true"
     ) >= 0
@@ -128,6 +132,29 @@ def test_native_worker_copies_only_api_module_and_preserves_login(monkeypatch, t
     manager.stop()
     assert child.terminated
     assert '"stopped"' in (tmp_path / "data" / "codex-worker-startup.json").read_text(encoding="utf-8")
+
+
+def test_copied_native_worker_modules_import_in_isolation(tmp_path):
+    runtime = tmp_path / "runtime"
+    package = runtime / "app"
+    package.mkdir(parents=True)
+    (package / "__init__.py").write_text("", encoding="utf-8")
+    for name in native_codex.WORKER_SOURCE_FILES:
+        shutil.copyfile(ROOT / "app" / name, package / name)
+
+    env = dict(os.environ)
+    env["PYTHONPATH"] = str(runtime)
+    env["VPSDEPLOY_WORKER_TOKEN"] = "native-import-test-" + "x" * 32
+    env.pop("VPSDEPLOY_CODEX_NATIVE", None)
+    result = subprocess.run(
+        [sys.executable, "-c", "import app.ai_worker"],
+        cwd=runtime,
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=20,
+    )
+    assert result.returncode == 0, result.stderr
 
 
 def test_native_worker_refuses_unknown_local_service(monkeypatch, tmp_path):

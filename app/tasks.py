@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import re
 import threading
-import traceback
 from datetime import datetime, timedelta, timezone
 
 from .executor import SSHError
@@ -66,8 +65,12 @@ class JobRunner:
     def __init__(self, store, executor):
         self.store = store
         self.executor = executor
-        self._locks: dict[int, threading.Lock] = {}
+        self._locks: dict[tuple[str, int], threading.Lock] = {}
         self._mutex = threading.Lock()
+
+    @staticmethod
+    def endpoint_key(host: dict) -> tuple[str, int]:
+        return (str(host["hostname"]).strip().casefold(), int(host["port"]))
 
     def approval_text(self, job: dict, host: dict) -> str:
         return f'DEPLOY {job["project"]} TO {host["hostname"]}'
@@ -82,10 +85,17 @@ class JobRunner:
             raise ValueError("部署方案已超过十分钟，请重新进行环境检测并生成方案")
         # Avoid running two mutations for the same VPS in one process.
         with self._mutex:
-            lock = self._locks.setdefault(host["id"], threading.Lock())
+            lock = self._locks.setdefault(self.endpoint_key(host), threading.Lock())
             if not lock.acquire(blocking=False):
                 raise ValueError("此服务器有其他正在运行的变更任务")
-            if not self.store.approve(job["id"]):
+            try:
+                approved = self.store.approve(
+                    job["id"], hostname=host["hostname"], port=int(host["port"])
+                )
+            except Exception:
+                lock.release()
+                raise
+            if not approved:
                 lock.release()
                 raise ValueError("任务已执行或审批状态无效")
             threading.Thread(target=self._run, args=(job["id"], host, lock), daemon=True).start()

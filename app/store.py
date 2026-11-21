@@ -279,10 +279,14 @@ class Store:
                 return False
             if row["status"] in {"queued", "running"}:
                 raise ValueError("任务正在排队或执行，不能删除；请先结束任务并核对远端状态")
-            if row["project"] == "3x-ui":
+            dependency_project = {
+                "3x-ui": "3x-ui-https",
+                "s-ui": "s-ui-https",
+            }.get(row["project"])
+            if dependency_project:
                 dependencies = db.execute(
-                    "SELECT plan_json FROM jobs WHERE host_id=? AND project='3x-ui-https'",
-                    (row["host_id"],),
+                    "SELECT plan_json FROM jobs WHERE host_id=? AND project=?",
+                    (row["host_id"], dependency_project),
                 ).fetchall()
                 if any(json.loads(dep["plan_json"]).get("options", {}).get("source_job_id") == job_id
                        for dep in dependencies):
@@ -292,8 +296,32 @@ class Store:
             return cursor.rowcount == 1
 
 
-    def approve(self, id: str) -> bool:
+    def approve(self, id: str, *, hostname: str | None = None,
+                port: int | None = None) -> bool:
+        if (hostname is None) != (port is None):
+            raise ValueError("审批端点参数不完整")
         with self.lock, self._db() as c:
+            if hostname is not None:
+                # Serialize the active-endpoint check and approval across
+                # processes sharing this SQLite database.
+                c.execute("BEGIN IMMEDIATE")
+                target = c.execute(
+                    """SELECT j.id FROM jobs j JOIN hosts h ON j.host_id=h.id
+                       WHERE j.id=? AND j.status='planned'
+                       AND lower(h.hostname)=lower(?) AND h.port=?""",
+                    (id, hostname, int(port)),
+                ).fetchone()
+                if target is None:
+                    return False
+                active = c.execute(
+                    """SELECT 1 FROM jobs j JOIN hosts h ON j.host_id=h.id
+                       WHERE lower(h.hostname)=lower(?) AND h.port=?
+                       AND j.id<>? AND j.status IN ('queued','running')
+                       LIMIT 1""",
+                    (hostname, int(port), id),
+                ).fetchone()
+                if active:
+                    raise ValueError("该 SSH 地址和端口已有排队或执行中的变更任务")
             cursor = c.execute("UPDATE jobs SET status='queued', approved_at=?, updated_at=? WHERE id=? AND status='planned'",
                                (now(), now(), id))
             c.commit()

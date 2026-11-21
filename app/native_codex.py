@@ -28,6 +28,7 @@ from .config import env as cfg_env
 
 PORT = 8789
 VENV_REQUIREMENTS = "requirements-codex-worker.txt"
+WORKER_SOURCE_FILES = ("ai_worker.py", "config.py")
 ENV_SWITCH = "VPSDEPLOY_CODEX_NATIVE_AUTO_START"
 
 
@@ -232,8 +233,8 @@ class NativeCodexManager:
                 path.mkdir(parents=True, exist_ok=True)
             # No project files, SSH keys, secrets or DB inside the worker cwd.
             (package / "__init__.py").write_text("", encoding="utf-8")
-            shutil.copyfile(self.project_root / "app" / "ai_worker.py",
-                            package / "ai_worker.py")
+            for name in WORKER_SOURCE_FILES:
+                shutil.copyfile(self.project_root / "app" / name, package / name)
             config = auth / "config.toml"
             if not config.exists():
                 config.write_text("[features]\nprefer_mxc = true\n",
