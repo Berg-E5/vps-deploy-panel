@@ -127,11 +127,11 @@ echo "$SRC" > "$WORK/srcpath"
 # ---------------------------------------------------------------- 物流报价
 
 def _tls_preflight_script(domain: str, tls_identity: str, ssh_ipv4: str | None, ssh_ipv6: str | None) -> dict:
-    """TLS preflight checks: DNS resolution, certbot availability, ACME port 80."""
+    """TLS preflight checks DNS and the nginx-based ACME path."""
     mode = "domain"
     identity = tls_identity
     return {
-        "label": "核对域名解析、Certbot 与 ACME 80 端口",
+        "label": "核对域名解析、Certbot nginx 与 ACME 能力",
         "timeout": 60,
         "script": f"""set -eu
 test "$(id -u)" = 0
@@ -150,11 +150,16 @@ if [ "{mode}" = "domain" ]; then
         echo "域名 A 记录不指向本机公网 IPv4，请先配置 DNS" >&2; exit 29;
     }}
 fi
-# ACME port 80 must be free for standalone/nginx challenge
-if ss -Hltn 'sport = :80' | grep -q .; then
-    echo "TCP 80 已被占用，无法进行 ACME 验证" >&2; exit 26
-fi
-echo "TLS 预检通过"
+# nginx is installed in the preceding dependency step and intentionally owns
+# TCP 80. The deployment-level preflight already required 80/443 to be free
+# before nginx was installed; certbot must use the nginx authenticator here.
+systemctl is-active --quiet nginx || {{
+    echo "nginx 未运行，无法执行 Certbot nginx ACME 验证" >&2; exit 25
+}}
+certbot plugins --authenticators --non-interactive 2>/dev/null | grep -q nginx || {{
+    echo "Certbot nginx authenticator 不可用，请检查 python3-certbot-nginx" >&2; exit 25
+}}
+echo "TLS 预检通过（nginx ACME）"
 """,
     }
 
@@ -552,31 +557,7 @@ certbot --version
     
     # Add TLS preflight if HTTPS mode
     if access_mode == "https" and tls_identity:
-        steps.append({
-            "label": "核对域名解析、Certbot 与 ACME 80 端口",
-            "timeout": 60,
-            "script": f"""set -eu
-test "$(id -u)" = 0
-command -v curl >/dev/null
-command -v getent >/dev/null
-# Public IPv4 egress
-public_ip="$(curl --proto '=https' --tlsv1.2 -4 -fsS --max-time 12 https://api.ipify.org)"
-case "$public_ip" in ""|*[!0-9.]* ) echo "无法识别公网 IPv4" >&2; exit 27;; esac
-if [ -n "{ssh_ipv4 or ''}" ]; then
-    test "$public_ip" = "{ssh_ipv4 or ''}" || {{
-        echo "VPS 出口 IP 与 SSH 绑定 IPv4 不符" >&2; exit 28;
-    }}
-fi
-getent ahostsv4 "{tls_identity}" | awk '{{print $1}}' | grep -Fxq "$public_ip" || {{
-    echo "域名 A 记录不指向本机公网 IPv4，请先配置 DNS" >&2; exit 29;
-}}
-# ACME port 80 must be free for standalone/nginx challenge
-if ss -Hltn 'sport = :80' | grep -q .; then
-    echo "TCP 80 已被占用，无法进行 ACME 验证" >&2; exit 26
-fi
-echo "TLS 预检通过"
-""",
-        })
+        steps.append(_tls_preflight_script(domain, tls_identity, ssh_ipv4, ssh_ipv6))
     
     ssl_flag = " --no-tls" if skip_ssl else ""
     steps.append({

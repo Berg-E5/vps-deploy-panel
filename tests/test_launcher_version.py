@@ -87,10 +87,10 @@ def test_current_version_is_consistent_between_server_frontend_and_docs():
     main = (root / "app" / "main.py").read_text(encoding="utf-8")
     html = (root / "app" / "static" / "index.html").read_text(encoding="utf-8")
     js = (root / "app" / "static" / "app.js").read_text(encoding="utf-8")
-    assert 'version="1.0.3"' in main
-    assert 'CURRENT_VERSION = "1.0.3"' in main
-    assert "ALPHA v1.0.3" in html
-    assert "const CLIENT_VERSION = '1.0.3'" in js
+    assert 'version="1.0.4"' in main
+    assert 'CURRENT_VERSION = "1.0.4"' in main
+    assert "ALPHA v1.0.4" in html
+    assert "const CLIENT_VERSION = '1.0.4'" in js
     assert 'id="footer-version"' in html
     assert "VPS Deploy Panel v1.0.0" not in html
     assert "VPS Deploy Panel v1.0.0" not in js

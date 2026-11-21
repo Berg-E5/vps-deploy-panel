@@ -56,8 +56,20 @@ def test_featured_web_apps_accept_the_ui_https_payload(web_api, project, domain)
     assert plan["options"]["tls_identity"] == domain
     assert plan["options"]["certificate_type"] == "domain"
     assert plan["options"]["ssh_ipv4"] == "45.32.35.195"
-    assert any("TLS 预检" in step["label"] or "ACME 80" in step["label"]
-               for step in plan["steps"])
+    dependency_index = next(
+        index for index, step in enumerate(plan["steps"])
+        if step["label"].startswith("安装缺失的系统依赖")
+    )
+    tls_index = next(
+        index for index, step in enumerate(plan["steps"])
+        if step["label"].startswith("核对域名解析")
+    )
+    assert dependency_index < tls_index
+    tls_script = plan["steps"][tls_index]["script"]
+    assert "sport = :80" not in tls_script
+    assert "systemctl is-active --quiet nginx" in tls_script
+    assert "certbot plugins --authenticators" in tls_script
+    assert "nginx ACME" in tls_script
 
 
 @pytest.mark.parametrize(("project", "domain", "marker"), [
