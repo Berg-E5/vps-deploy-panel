@@ -1,24 +1,28 @@
-# VPS Deploy Panel v1.0.4
+# VPS Deploy Panel v1.0.5
 
-## 修复
+## 自动更新修复
 
-- 修复物流报价系统 HTTPS 部署在安装 nginx 后错误要求 TCP 80 空闲的问题。
-- 修复音乐解锁工具共用的 HTTPS 预检模板中的相同端口顺序问题。
-- HTTPS 预检现在验证 nginx 服务运行和 Certbot nginx authenticator 可用，再交给 nginx 完成 ACME 验证。
-- 增加对应回归测试，确保依赖安装与 TLS 预检顺序正确。
+- 面板自动更新改为由安装目录外的临时更新助手执行，不再让运行中的 `pythonw.exe` 锁住安装目录。
+- 更新助手会等待面板接口返回，再停止旧客户端、静默安装、校验安装结果并自动重新启动。
+- Windows 启动器启动时会自动检查更新，并在没有部署任务时执行切换。
+- 浏览器版和桌面版分别选择对应的主安装包，不再把桌面版更新成另一套浏览器安装。
+- 仍有排队或执行中的部署任务时禁止自动更新，避免中断远程操作。
+- 重复双击启动器时优先打开正在运行的面板，不再创建 `8788/8789` 等重复实例。
 
-本版本包含 v1.0.3 的全部修复。
+**从 v1.0.4 或更早版本升级时，需要手动安装一次 v1.0.5。** 旧版的更新器存在运行进程占用安装目录的问题；升级到 v1.0.5 后，后续版本可以正常自动更新。
+
+本版本包含 v1.0.4 的全部修复。
 
 ## 下载
 
-- `VPSDeployPanel-1.0.4-Setup.exe`：主安装包，推荐。
-- `VPSDeployPanel-1.0.4-Desktop-Setup.exe`：原生桌面窗口版。
-- `VPSDeployPanel-1.0.4-portable.zip`：免安装版。
+- `VPSDeployPanel-1.0.5-Setup.exe`：主安装包，推荐。
+- `VPSDeployPanel-1.0.5-Desktop-Setup.exe`：原生桌面窗口版。
+- `VPSDeployPanel-1.0.5-portable.zip`：免安装版。
 - `SHA256SUMS.txt`：发布资产 SHA-256 校验表。
 
 ## 验证
 
+- 更新助手在 Windows PowerShell 中完成隔离运行：停止旧进程、执行安装器并成功返回。
 - Ubuntu 与 Windows Python 测试通过。
-- 物流报价和音乐解锁 HTTPS 生成脚本回归测试通过。
-- 前端 UI、主题、JavaScript 语法和 Windows PowerShell 启动器测试通过。
+- Windows 启动器、Release 资产选择、部署任务保护、前端 UI 和主题测试通过。
 - Windows 安装包构建、静默安装、卸载和桌面包内容检查通过。

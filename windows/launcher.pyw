@@ -9,6 +9,8 @@ import hashlib
 import os
 import re
 import secrets
+import shutil
+import sqlite3
 import sys
 import tempfile
 import threading
@@ -148,6 +150,81 @@ def _open_browser(base_url: str) -> None:
         time.sleep(0.5)
 
 
+def _existing_panel_url() -> str:
+    ports = [8787]
+    try:
+        port_file = int((DATA_DIR / "port").read_text(encoding="ascii").strip())
+        if port_file not in ports:
+            ports.append(port_file)
+    except (OSError, ValueError):
+        pass
+    for port in ports:
+        base = f"http://127.0.0.1:{port}"
+        try:
+            with urllib.request.urlopen(f"{base}/api/health", timeout=1.5) as resp:
+                data = json.load(resp)
+            if data.get("ok") is True and data.get("security") == "local-only":
+                return base
+        except (OSError, ValueError, urllib.error.URLError):
+            continue
+    return ""
+
+
+def _has_active_jobs() -> bool:
+    database = DATA_DIR / "vpsdeploy.db"
+    if not database.is_file():
+        return False
+    try:
+        with sqlite3.connect(database.resolve().as_uri() + "?mode=ro", uri=True) as connection:
+            row = connection.execute(
+                "SELECT 1 FROM jobs WHERE status IN ('queued','running') LIMIT 1"
+            ).fetchone()
+        return row is not None
+    except sqlite3.Error:
+        return True
+
+
+def _schedule_update_helper(installer_path: Path) -> bool:
+    helper_source = APP_DIR / "app" / "update_helper.ps1"
+    if not helper_source.is_file():
+        _log(f"更新助手缺失: {helper_source}")
+        return False
+    helper = None
+    try:
+        fd, raw_helper = tempfile.mkstemp(prefix="vpsdeploy-helper-", suffix=".ps1")
+        os.close(fd)
+        helper = Path(raw_helper)
+        shutil.copyfile(helper_source, helper)
+        LOG_DIR.mkdir(parents=True, exist_ok=True)
+        powershell = Path(os.environ.get("SystemRoot", r"C:\Windows")) / (
+            "System32/WindowsPowerShell/v1.0/powershell.exe"
+        )
+        subprocess.Popen(
+            [
+                str(powershell), "-NoProfile", "-ExecutionPolicy", "Bypass",
+                "-File", str(helper),
+                "-InstallerPath", str(installer_path),
+                "-InstallDir", str(APP_DIR),
+                "-LogPath", str(LOG_DIR / "update.log"),
+                "-DelaySeconds", "1",
+            ],
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            close_fds=True,
+            creationflags=(
+                getattr(subprocess, "CREATE_NO_WINDOW", 0)
+                | getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
+            ),
+        )
+        return True
+    except Exception as exc:
+        _log(f"无法启动更新助手: {exc}")
+        if helper is not None:
+            helper.unlink(missing_ok=True)
+        return False
+
+
 def _select_release_asset(data: dict, version: str, tag: str | None = None) -> dict:
     expected = f"VPSDeployPanel-{version}-Setup.exe"
     matches = [
@@ -180,7 +257,7 @@ def check_for_updates() -> dict:
         latest_version = str(data.get("tag_name", "")).strip().lstrip("v")
         if not re.fullmatch(r"\d+\.\d+\.\d+", latest_version):
             raise ValueError("Release 版本号格式不正确")
-        current_version = "1.0.4"
+        current_version = "1.0.5"
         asset = _select_release_asset(data, latest_version, str(data.get("tag_name", "")))
         return {
             "has_update": _version_greater(latest_version, current_version),
@@ -195,7 +272,7 @@ def check_for_updates() -> dict:
 
 
 def _version_greater(a: str, b: str) -> bool:
-    """简单语义化版本比较：1.0.4 > 1.0.3"""
+    """简单语义化版本比较：1.0.5 > 1.0.4"""
     try:
         a_parts = [int(x) for x in a.split(".")]
         b_parts = [int(x) for x in b.split(".")]
@@ -209,8 +286,9 @@ def _version_greater(a: str, b: str) -> bool:
 
 
 def download_and_install_update(url: str, digest: str) -> bool:
-    """Download the exact GitHub asset, verify SHA-256, then install it."""
+    """Download the exact GitHub asset and schedule installation outside this process."""
     installer_path = None
+    scheduled = False
     try:
         parsed = urlparse(url)
         if (parsed.scheme != "https" or parsed.hostname != "github.com"
@@ -240,24 +318,38 @@ def download_and_install_update(url: str, digest: str) -> bool:
             raise ValueError("更新包大小异常")
         if not secrets.compare_digest(digest_hash.hexdigest(), expected.split(":", 1)[1]):
             raise ValueError("更新包 SHA-256 校验失败")
-        _log(f"下载完成，静默安装: {installer_path}")
-        result = subprocess.run(
-            [str(installer_path), "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/CLOSEAPPLICATIONS"],
-            timeout=300,
-            capture_output=True,
-        )
-        return result.returncode == 0
+        _log(f"下载完成，准备切换版本: {installer_path}")
+        scheduled = _schedule_update_helper(installer_path)
+        return scheduled
     except Exception as exc:
         _log(f"更新失败: {exc}")
         return False
     finally:
-        if installer_path is not None:
+        if installer_path is not None and not scheduled:
             installer_path.unlink(missing_ok=True)
 
 
 def main() -> int:
     _ensure_env()
     sys.path.insert(0, str(APP_DIR))
+    update = check_for_updates()
+    if update.get("has_update"):
+        if _has_active_jobs():
+            _log("检测到客户端更新，但仍有部署任务执行中；本次不自动更新")
+        else:
+            _log(f"发现客户端更新 {update.get('current')} -> {update.get('version')}")
+            if download_and_install_update(update["url"], update["digest"]):
+                _log("更新助手已启动，当前启动器退出等待替换")
+                return 0
+    elif update.get("error"):
+        _log(f"检查客户端更新失败: {update['error']}")
+
+    existing_url = _existing_panel_url()
+    if existing_url:
+        _log(f"面板已在 {existing_url} 运行, 不重复启动")
+        _open_browser(existing_url)
+        return 0
+
     try:
         port = _pick_port(8787)
     except RuntimeError as exc:

@@ -4,6 +4,8 @@ from __future__ import annotations
 import hashlib
 import io
 import runpy
+import subprocess
+import sys
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -54,6 +56,12 @@ def test_exact_release_asset_is_selected_instead_of_first_setup():
     assert payload["digest"] == DIGEST
 
 
+def test_desktop_client_selects_the_desktop_installer():
+    payload = main._release_update_payload(release(), desktop=True)
+    assert payload["url"].endswith("/VPSDeployPanel-1.2.3-Desktop-Setup.exe")
+    assert payload["digest"] == "sha256:" + "2" * 64
+
+
 def test_release_asset_requires_digest_and_exact_url():
     data = release()
     data["assets"][-1]["digest"] = ""
@@ -74,9 +82,13 @@ def test_update_routes_require_admin_and_install_exact_version(monkeypatch):
     monkeypatch.setattr(main, "WINDOWS_UPDATER", True)
     monkeypatch.setattr(main.urllib.request, "urlopen", lambda *a, **k: io.BytesIO(PAYLOAD))
     calls = []
-    monkeypatch.setattr(main.subprocess, "run", lambda argv, **kwargs: (
-        calls.append(argv) or SimpleNamespace(returncode=0)
-    ))
+
+    def schedule(installer):
+        calls.append(installer)
+        installer.unlink(missing_ok=True)
+        return {"ok": True, "scheduled": True, "mode": "browser"}
+
+    monkeypatch.setattr(main, "_schedule_update", schedule)
 
     check = client.get("/api/update/check", headers=HEAD)
     assert check.status_code == 200
@@ -84,9 +96,99 @@ def test_update_routes_require_admin_and_install_exact_version(monkeypatch):
 
     installed = client.post("/api/update/install", headers=HEAD, json={"version": "1.2.3"})
     assert installed.status_code == 200, installed.text
-    assert installed.json() == {"ok": True, "exit_code": 0}
+    assert installed.json() == {"ok": True, "scheduled": True, "mode": "browser"}
     assert len(calls) == 1
-    assert calls[0][-1] == "/CLOSEAPPLICATIONS"
+
+
+def test_update_is_blocked_while_a_deployment_is_active(monkeypatch):
+    monkeypatch.setattr(main, "WINDOWS_UPDATER", True)
+    monkeypatch.setattr(main.store, "has_active_jobs", lambda: True)
+    called = []
+    monkeypatch.setattr(main, "_fetch_latest_release", lambda: called.append(True))
+    response = TestClient(main.app).post(
+        "/api/update/install", headers=HEAD, json={"version": "1.2.3"}
+    )
+    assert response.status_code == 409
+    assert "部署任务" in response.text
+    assert called == []
+
+
+def test_update_helper_stops_old_client_installs_and_restarts():
+    root = Path(__file__).resolve().parents[1]
+    helper = (root / "app" / "update_helper.ps1").read_text(encoding="utf-8")
+    assert "Stop-Process" in helper
+    assert "'/VERYSILENT'" in helper
+    assert "VPSDeployPanel.exe" in helper
+    assert "launcher.pyw" in helper
+    assert "Start-Process" in helper
+
+
+def test_scheduler_launches_helper_outside_current_process(monkeypatch, tmp_path):
+    installer = tmp_path / "update.exe"
+    installer.write_bytes(PAYLOAD)
+    monkeypatch.setattr(main, "DATA_DIR", tmp_path / "data")
+    monkeypatch.setattr(main, "IS_DESKTOP_CLIENT", False)
+    captured = {}
+
+    def fake_popen(args, **kwargs):
+        captured["args"] = args
+        captured["kwargs"] = kwargs
+        Path(args[args.index("-File") + 1]).unlink(missing_ok=True)
+        installer.unlink(missing_ok=True)
+        return SimpleNamespace(pid=123)
+
+    monkeypatch.setattr(main.subprocess, "Popen", fake_popen)
+    result = main._schedule_update(installer)
+    assert result == {"ok": True, "scheduled": True, "mode": "browser"}
+    assert "-InstallerPath" in captured["args"]
+    assert str(installer) in captured["args"]
+    assert captured["kwargs"]["close_fds"] is True
+
+
+def test_frontend_waits_for_scheduled_helper_instead_of_reloading_immediately():
+    root = Path(__file__).resolve().parents[1]
+    script = (root / "app" / "static" / "app.js").read_text(encoding="utf-8")
+    assert "install.ok&&install.scheduled" in script
+    assert "更新已开始。面板会短暂停止，安装完成后自动重新打开" in script
+    assert "if(!updateScheduled)" in script
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="Requires Windows PowerShell")
+def test_update_helper_stops_old_process_and_runs_installer(tmp_path):
+    helper = Path(__file__).resolve().parents[1] / "app" / "update_helper.ps1"
+    install = tmp_path / "install"
+    install.mkdir()
+    dummy = install / "dummy.py"
+    dummy.write_text("import time\ntime.sleep(60)\n", encoding="utf-8")
+    installer = tmp_path / "fake-installer.cmd"
+    marker = tmp_path / "installed.txt"
+    installer.write_text(
+        f"@echo off\r\necho installed>\"{marker}\"\r\nexit /b 0\r\n",
+        encoding="ascii",
+    )
+    log = tmp_path / "update.log"
+    old_process = subprocess.Popen([sys.executable, str(dummy)])
+    try:
+        result = subprocess.run(
+            [
+                "powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass",
+                "-File", str(helper),
+                "-InstallerPath", str(installer),
+                "-InstallDir", str(install),
+                "-LogPath", str(log),
+                "-DelaySeconds", "0",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        old_process.wait(timeout=5)
+        assert result.returncode == 0, result.stderr
+        assert marker.is_file()
+        assert "Installer exit code: 0" in log.read_text(encoding="utf-8-sig")
+    finally:
+        if old_process.poll() is None:
+            old_process.kill()
 
 
 def test_windows_launcher_uses_the_same_exact_asset_rule():

@@ -12,6 +12,7 @@ import time
 import re
 import ipaddress
 import secrets
+import shutil
 import urllib.request
 from pathlib import Path
 from urllib.parse import urlparse
@@ -57,10 +58,16 @@ ADMIN_TOKEN = env("ADMIN_TOKEN", "")
 if len(ADMIN_TOKEN) < 24 or ADMIN_TOKEN.startswith("REPLACE_"):
     raise RuntimeError("必须配置长度至少 24 字符的 VPSDEPLOY_ADMIN_TOKEN")
 
-CURRENT_VERSION = "1.0.4"
+CURRENT_VERSION = "1.0.5"
 GITHUB_RELEASE_API = "https://api.github.com/repos/Berg-E5/vps-deploy-panel/releases/latest"
 RELEASE_DOWNLOAD_PREFIX = "https://github.com/Berg-E5/vps-deploy-panel/releases/download/"
-WINDOWS_UPDATER = os.name == "nt"
+IS_DESKTOP_CLIENT = (BASE.parent / "VPSDeployPanel.exe").is_file()
+IS_BROWSER_CLIENT = (
+    (BASE.parent / "launcher.pyw").is_file()
+    and (BASE.parent / "runtime" / "python" / "pythonw.exe").is_file()
+)
+IS_INSTALLED_CLIENT = IS_DESKTOP_CLIENT or IS_BROWSER_CLIENT
+WINDOWS_UPDATER = os.name == "nt" and IS_INSTALLED_CLIENT
 
 store = Store(str(DATA_DIR / "vpsdeploy.db"))
 executor = SSHExecutor(SSHConfig(
@@ -77,7 +84,7 @@ async def native_codex_lifespan(_application: FastAPI):
         stop_native_codex()
 
 
-app = FastAPI(title="VPS Deploy Panel", version="1.0.4",
+app = FastAPI(title="VPS Deploy Panel", version="1.0.5",
               lifespan=native_codex_lifespan)
 LOCAL_AUTO_LOGIN = env_flag("LOCAL_AUTO_LOGIN", "0")
 LOCAL_PORT = env_int("LOCAL_PORT", 0)
@@ -301,9 +308,11 @@ def _fetch_latest_release() -> dict:
     return data
 
 
-def _select_release_asset(release: dict, version: str, tag: str | None = None) -> dict:
+def _select_release_asset(release: dict, version: str, tag: str | None = None,
+                          *, desktop: bool = False) -> dict:
     """Select exactly one versioned main installer, never the first Setup.exe."""
-    expected = f"VPSDeployPanel-{version}-Setup.exe"
+    suffix = "Desktop-Setup.exe" if desktop else "Setup.exe"
+    expected = f"VPSDeployPanel-{version}-{suffix}"
     matches = [
         asset for asset in release.get("assets", [])
         if isinstance(asset, dict) and asset.get("name") == expected
@@ -325,11 +334,14 @@ def _select_release_asset(release: dict, version: str, tag: str | None = None) -
     return {"name": expected, "url": url, "digest": digest.lower()}
 
 
-def _release_update_payload(release: dict) -> dict:
+def _release_update_payload(release: dict, *, desktop: bool | None = None) -> dict:
     version = str(release.get("tag_name", "")).strip().lstrip("v")
     if not re.fullmatch(r"\d+\.\d+\.\d+", version):
         raise ValueError("Release 版本号格式不正确")
-    asset = _select_release_asset(release, version, str(release.get("tag_name", "")))
+    desktop = IS_DESKTOP_CLIENT if desktop is None else desktop
+    asset = _select_release_asset(
+        release, version, str(release.get("tag_name", "")), desktop=desktop
+    )
     return {
         "has_update": _version_greater(version, CURRENT_VERSION),
         "version": version,
@@ -396,11 +408,54 @@ def _download_verified_installer(asset: dict) -> Path:
         raise
 
 
+def _schedule_update(installer: Path) -> dict:
+    helper_source = BASE / "update_helper.ps1"
+    if not helper_source.is_file():
+        raise ValueError("更新助手脚本缺失")
+    helper_fd, helper_raw = tempfile.mkstemp(prefix="vpsdeploy-helper-", suffix=".ps1")
+    os.close(helper_fd)
+    helper = Path(helper_raw)
+    log_dir = DATA_DIR / "logs"
+    log_dir.mkdir(parents=True, exist_ok=True)
+    update_log = log_dir / "update.log"
+    try:
+        shutil.copyfile(helper_source, helper)
+        system_root = os.environ.get("SystemRoot", r"C:\Windows")
+        powershell = Path(system_root) / "System32" / "WindowsPowerShell" / "v1.0" / "powershell.exe"
+        args = [
+            str(powershell), "-NoProfile", "-ExecutionPolicy", "Bypass",
+            "-File", str(helper),
+            "-InstallerPath", str(installer),
+            "-InstallDir", str(BASE.parent),
+            "-LogPath", str(update_log),
+            "-DelaySeconds", "3",
+        ]
+        creationflags = (
+            getattr(subprocess, "CREATE_NO_WINDOW", 0)
+            | getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
+        )
+        subprocess.Popen(
+            args,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            close_fds=True,
+            creationflags=creationflags,
+        )
+    except Exception:
+        installer.unlink(missing_ok=True)
+        helper.unlink(missing_ok=True)
+        raise
+    return {"ok": True, "scheduled": True, "mode": "desktop" if IS_DESKTOP_CLIENT else "browser"}
+
+
 @app.post("/api/update/install", dependencies=[Depends(authorized)])
 def update_install(body: UpdateInstall):
-    """Install only the exact latest GitHub Release asset with a verified digest."""
+    """Stage the exact release and let an external helper replace the live client."""
     if not WINDOWS_UPDATER:
-        raise HTTPException(status_code=409, detail="自动安装更新仅支持 Windows")
+        raise HTTPException(status_code=409, detail="自动安装更新仅支持 Windows 安装版客户端")
+    if store.has_active_jobs():
+        raise HTTPException(status_code=409, detail="仍有部署任务执行中，完成后再更新客户端")
     try:
         release = _fetch_latest_release()
         latest = str(release.get("tag_name", "")).strip().lstrip("v")
@@ -408,20 +463,18 @@ def update_install(body: UpdateInstall):
             raise ValueError("更新版本已变化，请重新检查更新")
         if not _version_greater(latest, CURRENT_VERSION):
             raise ValueError("当前已经是最新版本")
-        asset = _select_release_asset(release, latest, str(release.get("tag_name", "")))
+        asset = _select_release_asset(
+            release, latest, str(release.get("tag_name", "")),
+            desktop=IS_DESKTOP_CLIENT,
+        )
         installer = _download_verified_installer(asset)
     except (OSError, ValueError) as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     try:
-        result = subprocess.run(
-            [str(installer), "/VERYSILENT", "/SUPPRESSMSGBOXES",
-             "/NORESTART", "/CLOSEAPPLICATIONS"],
-            timeout=300,
-            capture_output=True,
-        )
-        return {"ok": result.returncode == 0, "exit_code": result.returncode}
-    finally:
+        return _schedule_update(installer)
+    except (OSError, ValueError) as exc:
         installer.unlink(missing_ok=True)
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
 
 
 @app.post("/api/desktop/stop", dependencies=[Depends(authorized)])

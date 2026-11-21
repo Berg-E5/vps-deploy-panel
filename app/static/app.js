@@ -1,6 +1,6 @@
 /* VPS Deploy Panel – no external JavaScript, no generated remote shell. */
 const el = (s) => document.querySelector(s);
-const CLIENT_VERSION = '1.0.4';
+const CLIENT_VERSION = '1.0.5';
 const footerVersion = el('#footer-version');
 if (footerVersion) footerVersion.textContent = 'v' + CLIENT_VERSION;
 const escapeHtml = (v) => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -1942,6 +1942,7 @@ el('#logout').addEventListener('click',logout);
 el('#check-update-btn').addEventListener('click',async e=>{
   const btn=e.currentTarget;
   btn.classList.add('is-loading');btn.disabled=true;
+  let updateScheduled=false;
   try{
     const resp=await api('/update/check');
     if(resp.error){
@@ -1951,7 +1952,11 @@ el('#check-update-btn').addEventListener('click',async e=>{
       if(confirm){
         btn.textContent='下载中...';
         const install=await api('/update/install',{method:'POST',body:JSON.stringify({version:resp.version})});
-        if(install.ok){
+        if(install.ok&&install.scheduled){
+          updateScheduled=true;
+          btn.textContent='安装中...';
+          toast('更新已开始。面板会短暂停止，安装完成后自动重新打开');
+        }else if(install.ok){
           toast('更新安装完成，应用即将重启');
           setTimeout(()=>location.reload(),2000);
         }else{
@@ -1964,7 +1969,9 @@ el('#check-update-btn').addEventListener('click',async e=>{
   }catch(err){
     toast(err.message,true);
   }finally{
-    btn.classList.remove('is-loading');btn.disabled=false;btn.textContent='检查更新';
+    if(!updateScheduled){
+      btn.classList.remove('is-loading');btn.disabled=false;btn.textContent='检查更新';
+    }
   }
 });
 el('#codex-command-form').addEventListener('submit',submitCodexCommand);
